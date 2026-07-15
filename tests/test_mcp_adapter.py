@@ -136,6 +136,8 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
         tool_names = {tool["name"] for tool in tools_response["result"]["tools"]}
         assert {
             "ai_search",
+            "ai_evidence_search",
+            "ai_answer_snapshot",
             "ai_extract",
             "ai_fetch_page",
             "ai_screenshot",
@@ -146,6 +148,9 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
             "gateway_health",
         } <= tool_names
         search_tool = next(tool for tool in tools_response["result"]["tools"] if tool["name"] == "ai_search")
+        evidence_tool = next(
+            tool for tool in tools_response["result"]["tools"] if tool["name"] == "ai_evidence_search"
+        )
         assert "普通搜索请保持 provider=auto" in search_tool["description"]
         assert "普通搜索优先 SearXNG" not in search_tool["description"]
         assert {
@@ -162,9 +167,11 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
             "semantic_scholar",
             "internet_archive",
             "common_crawl",
+            "zhihu",
         } <= set(
             search_tool["inputSchema"]["properties"]["provider"]["enum"]
         )
+        assert "zhihu" in evidence_tool["inputSchema"]["properties"]["providers"]["items"]["enum"]
 
         send_framed(
             proc,
@@ -264,6 +271,54 @@ def test_mcp_new_analysis_tools_call_expected_routes(monkeypatch):
     }
     assert calls[2]["payload"]["path"] == "/extract"
     assert calls[2]["payload"]["body"] == {"url": "https://example.com", "screenshot_mode": "auto"}
+
+
+def test_mcp_evidence_tools_call_versioned_routes(monkeypatch):
+    adapter = load_adapter()
+    calls = []
+
+    def fake_call_gateway(payload, timeout=180):
+        calls.append({"payload": payload, "timeout": timeout})
+        return {"ok": True, "data": {"success": True}}
+
+    monkeypatch.setattr(adapter, "call_gateway", fake_call_gateway)
+
+    adapter.handle_tool_call(
+        "ai_evidence_search",
+        {
+            "queries": ["one", "two"],
+            "locale": "zh-CN",
+            "providers": ["brave", "tavily"],
+            "max_results": 6,
+            "include_domains": ["example.com"],
+            "max_provider_calls": 2,
+            "max_extract_pages": 3,
+            "timeout_ms": 9000,
+            "rerank": False,
+        },
+    )
+    adapter.handle_tool_call("ai_answer_snapshot", {"queries": ["one"], "locale": "en-US"})
+
+    assert calls[0]["payload"]["path"] == "/v1/evidence-search"
+    assert calls[0]["payload"]["body"] == {
+        "queries": ["one", "two"],
+        "locale": "zh-CN",
+        "providers": ["brave", "tavily"],
+        "max_results": 6,
+        "filters": {
+            "include_domains": ["example.com"],
+            "exclude_domains": [],
+            "freshness": None,
+        },
+        "budget": {
+            "max_provider_calls": 2,
+            "max_extract_pages": 3,
+            "timeout_ms": 9000,
+        },
+        "rerank": False,
+    }
+    assert calls[1]["payload"]["path"] == "/v1/answer-snapshots"
+    assert calls[1]["payload"]["body"] == {"queries": ["one"], "locale": "en-US"}
 
 
 def test_mcp_screenshot_tool_calls_screenshot_route(monkeypatch):

@@ -129,6 +129,7 @@ def test_explicit_community_providers_win_and_stay_out_of_auto_fallback():
     assert service.select_provider("transformer", provider="semantic_scholar") == "semantic_scholar"
     assert service.select_provider("python", provider="internet_archive") == "internet_archive"
     assert service.select_provider("example.com", provider="common_crawl") == "common_crawl"
+    assert service.select_provider("中文搜索", provider="zhihu") == "zhihu"
     fallback_order = RouterService._provider_order("searxng", allow_fallback=True)
     explicit_only = {
         "duckduckgo",
@@ -144,8 +145,29 @@ def test_explicit_community_providers_win_and_stay_out_of_auto_fallback():
         "semantic_scholar",
         "internet_archive",
         "common_crawl",
+        "zhihu",
     }
     assert explicit_only.isdisjoint(fallback_order)
+
+
+def test_configured_zhihu_is_selected_for_chinese_auto_search():
+    service = RouterService(Settings(gateway_api_key="test", zhihu_api_key="configured"))
+
+    assert service.select_provider("如何优化中文博客 GEO") == "zhihu"
+    assert service.provider_configured("zhihu") is True
+
+
+def test_evidence_chinese_query_prefers_zhihu_without_exceeding_provider_budget():
+    service = RouterService(
+        Settings(
+            gateway_api_key="test",
+            zhihu_api_key="configured",
+            brave_api_key="configured",
+            tavily_api_key="configured",
+        )
+    )
+
+    assert service.evidence_provider_candidates("如何优化中文博客 GEO")[:2] == ["zhihu", "brave"]
 
 
 class FakeProvider:
@@ -200,3 +222,43 @@ def test_grok_cache_variant_changes_with_backend():
 
     assert openai_service._cache_variant("grok") != hybrid_service._cache_variant("grok")
     assert openai_service._cache_variant("brave") == hybrid_service._cache_variant("brave")
+
+
+def test_evidence_auto_candidates_include_only_configured_general_sources():
+    service = RouterService(
+        Settings(
+            gateway_api_key="test",
+            brave_api_key="configured",
+            tavily_api_key="configured",
+            exa_api_key="",
+            searxng_enabled=False,
+        )
+    )
+
+    assert service.evidence_provider_candidates("FastAPI evidence") == ["brave", "tavily"]
+
+
+def test_evidence_raw_search_skips_legacy_per_provider_rerank(monkeypatch):
+    service = RouterService(Settings(gateway_api_key="test"))
+    item = SearchResult(title="A", url="https://example.com", snippet="")
+    service.providers["brave"] = FakeProvider([item])
+
+    class FakeCache:
+        async def get_json(self, key):
+            return None
+
+        async def set_json(self, key, value, ttl=None):
+            return None
+
+    service.cache = FakeCache()
+
+    async def fail_rerank(*_args, **_kwargs):
+        raise AssertionError("raw evidence search must not rerank each provider independently")
+
+    monkeypatch.setattr(service.reranker, "rerank", fail_rerank)
+
+    import asyncio
+
+    response = asyncio.run(service.search_provider("q", "brave", 1, apply_rerank=False))
+
+    assert response.results == [item]

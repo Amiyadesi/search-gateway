@@ -11,6 +11,7 @@ SEARCH_PROVIDERS = [
     "tavily",
     "tavily_hikari",
     "exa",
+    "zhihu",
     "context7",
     "duckduckgo",
     "github",

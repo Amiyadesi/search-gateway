@@ -1,9 +1,18 @@
+from dataclasses import dataclass
 from typing import Any
 
 from app.config import Settings
 from app.schemas.common import SearchResult
 from app.utils.http import build_client
 from app.utils.logging import logger
+
+
+@dataclass(frozen=True)
+class RerankOutcome:
+    results: list[SearchResult]
+    applied: bool
+    succeeded: bool
+    error: str | None = None
 
 
 class RerankService:
@@ -22,8 +31,11 @@ class RerankService:
         )
 
     async def rerank(self, query: str, results: list[SearchResult]) -> list[SearchResult]:
+        return (await self.rerank_with_status(query, results)).results
+
+    async def rerank_with_status(self, query: str, results: list[SearchResult]) -> RerankOutcome:
         if not self.enabled or len(results) <= 1:
-            return results
+            return RerankOutcome(results=results, applied=False, succeeded=True)
 
         top_n = max(1, min(self.settings.rerank_top_n, len(results)))
         documents = [self._document_text(item) for item in results[:top_n]]
@@ -45,10 +57,15 @@ class RerankService:
                 resp.raise_for_status()
                 data = resp.json()
             ranked = self._apply_rankings(results, data, top_n)
-            return ranked or results
+            return RerankOutcome(results=ranked or results, applied=True, succeeded=True)
         except Exception as exc:
-            logger.warning("Rerank 调用失败，保留原始排序: {}", exc)
-            return results
+            logger.warning("Rerank 调用失败，保留原始排序: {}", type(exc).__name__)
+            return RerankOutcome(
+                results=results,
+                applied=True,
+                succeeded=False,
+                error=type(exc).__name__,
+            )
 
     @staticmethod
     def _document_text(result: SearchResult) -> str:

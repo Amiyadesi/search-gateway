@@ -37,5 +37,11 @@ class CacheService:
         except Exception as exc:
             logger.warning("Redis 写入失败: {}", exc)
 
+    async def delete(self, key: str) -> None:
+        try:
+            await self.client.delete(key)
+        except Exception as exc:
+            logger.warning("Redis 删除失败: {}", exc)
+
     async def close(self) -> None:
         await self.client.aclose()

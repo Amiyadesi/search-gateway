@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 
-SERVER_INFO = {"name": "ai-search-gateway", "version": "1.0.0"}
+SERVER_INFO = {"name": "ai-search-gateway", "version": "1.1.0"}
 DEFAULT_MCP_TEXT_MAX_CHARS = 60000
 DEFAULT_USE_PERSISTENT_SSH = True
 DEFAULT_REMOTE_DIR = "/root/search-gateway"
@@ -25,6 +25,7 @@ SEARCH_PROVIDERS = [
     "tavily",
     "tavily_hikari",
     "exa",
+    "zhihu",
     "context7",
     "duckduckgo",
     "github",
@@ -306,6 +307,55 @@ def tool_definitions() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "ai_evidence_search",
+            "description": "运行 Evidence v1：对 1-3 个显式查询执行有预算的多来源检索、RRF 融合、URL 去重、来源追踪和可选正文提取。结果是带日期的搜索证据，不代表任何消费级 AI 产品的引用结果。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "queries": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1, "maxLength": 500},
+                        "minItems": 1,
+                        "maxItems": 3,
+                    },
+                    "locale": {"type": "string", "default": "en-US"},
+                    "providers": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": SEARCH_PROVIDERS},
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "default": ["auto"],
+                    },
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 8},
+                    "include_domains": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+                    "exclude_domains": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+                    "freshness": {"type": ["string", "null"], "enum": ["day", "week", "month", "year", None]},
+                    "max_provider_calls": {"type": "integer", "minimum": 1, "maximum": 2, "default": 2},
+                    "max_extract_pages": {"type": "integer", "minimum": 0, "maximum": 5, "default": 5},
+                    "timeout_ms": {"type": "integer", "minimum": 1000, "maximum": 30000, "default": 12000},
+                    "rerank": {"type": "boolean", "default": True},
+                },
+                "required": ["queries"],
+            },
+        },
+        {
+            "name": "ai_answer_snapshot",
+            "description": "通过服务器固定配置的单一 API 入口记录 1-3 个带日期的回答快照及其返回的引用。它不等同于任何消费级产品界面，也不接受客户端 endpoint 或模型。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "queries": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1, "maxLength": 500},
+                        "minItems": 1,
+                        "maxItems": 3,
+                    },
+                    "locale": {"type": "string", "default": "en-US"},
+                },
+                "required": ["queries"],
+            },
+        },
+        {
             "name": "ai_extract",
             "description": "用 Firecrawl 提取网页正文 markdown。兼容旧工具名；新客户端也可以使用 ai_fetch_page。",
             "inputSchema": {
@@ -456,6 +506,42 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         max_results = clamp_int(args.get("max_results", 5), 1, 10)
         path = "/search?" + parse_query({"q": query, "provider": provider, "max_results": max_results})
         result = call_gateway({"method": "GET", "path": path, "timeout": 90}, timeout=120)
+    elif name == "ai_evidence_search":
+        queries = require_text_list_arg(args, "queries", maximum=3)
+        providers = normalize_provider_list(args.get("providers", ["auto"]))
+        freshness = args.get("freshness")
+        if freshness not in {None, "day", "week", "month", "year"}:
+            freshness = None
+        body = {
+            "queries": queries,
+            "locale": optional_text_arg(args, "locale") or "en-US",
+            "providers": providers,
+            "max_results": clamp_int(args.get("max_results", 8), 1, 10),
+            "filters": {
+                "include_domains": normalize_text_list(args.get("include_domains"), maximum=20),
+                "exclude_domains": normalize_text_list(args.get("exclude_domains"), maximum=20),
+                "freshness": freshness,
+            },
+            "budget": {
+                "max_provider_calls": clamp_int(args.get("max_provider_calls", 2), 1, 2),
+                "max_extract_pages": clamp_int(args.get("max_extract_pages", 5), 0, 5),
+                "timeout_ms": clamp_int(args.get("timeout_ms", 12000), 1000, 30000),
+            },
+            "rerank": bool(args.get("rerank", True)),
+        }
+        result = call_gateway(
+            {"method": "POST", "path": "/v1/evidence-search", "body": body, "timeout": 40},
+            timeout=60,
+        )
+    elif name == "ai_answer_snapshot":
+        body = {
+            "queries": require_text_list_arg(args, "queries", maximum=3),
+            "locale": optional_text_arg(args, "locale") or "en-US",
+        }
+        result = call_gateway(
+            {"method": "POST", "path": "/v1/answer-snapshots", "body": body, "timeout": 120},
+            timeout=150,
+        )
     elif name in {"ai_extract", "ai_fetch_page"}:
         result = call_gateway(
             {
@@ -544,6 +630,39 @@ def optional_text_arg(args: dict[str, Any], name: str) -> str:
     if isinstance(value, str):
         return value.strip()
     return ""
+
+
+def require_text_list_arg(args: dict[str, Any], name: str, maximum: int) -> list[str]:
+    values = normalize_text_list(args.get(name), maximum=maximum)
+    if not values:
+        raise ValueError(f"缺少必要字符串数组参数: {name}")
+    return values
+
+
+def normalize_text_list(value: Any, maximum: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = " ".join(item.split())
+        if text and text not in normalized:
+            normalized.append(text)
+        if len(normalized) >= maximum:
+            break
+    return normalized
+
+
+def normalize_provider_list(value: Any) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("providers 必须是非空字符串数组")
+    providers = normalize_text_list(value, maximum=2)
+    if len(providers) != len(value) or any(item not in SEARCH_PROVIDERS for item in providers):
+        raise ValueError("providers 包含不支持的搜索来源")
+    if "auto" in providers and len(providers) > 1:
+        raise ValueError("auto 不能与显式 provider 同时使用")
+    return providers
 
 
 def normalize_provider(value: Any) -> str:

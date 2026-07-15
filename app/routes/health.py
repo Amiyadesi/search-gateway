@@ -34,6 +34,7 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
         ),
         "tavily_hikari": ProviderHealth(configured=bool(settings.tavily_hikari_token and settings.tavily_hikari_url)),
         "exa": ProviderHealth(configured=bool(settings.exa_api_key)),
+        "zhihu": ProviderHealth(configured=bool(settings.zhihu_api_key)),
         "context7": ProviderHealth(configured=bool(settings.context7_api_key and settings.context7_base_url)),
         "duckduckgo": ProviderHealth(configured=bool(settings.duckduckgo_base_url)),
         "github": ProviderHealth(configured=bool(settings.github_search_base_url)),
@@ -69,6 +70,10 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
         "summary": ProviderHealth(
             configured=bool(settings.summary_api_key or settings.openai_api_key or settings.deepseek_api_key),
             model=settings.summary_model,
+        ),
+        "answer_api": ProviderHealth(
+            configured=bool(settings.answer_api_base_url and settings.answer_api_model),
+            model=settings.answer_api_model or None,
         ),
     }
     return HealthResponse(success=True, api="ok", redis="ok" if redis_ok else "unavailable", providers=providers)

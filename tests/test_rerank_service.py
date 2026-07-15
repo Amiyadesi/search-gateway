@@ -84,3 +84,42 @@ def test_rerank_failure_returns_original_results(monkeypatch):
     monkeypatch.setattr("app.services.rerank_service.build_client", lambda *_args, **_kwargs: FakeClient())
 
     assert asyncio.run(service.rerank("query", results)) == results
+
+
+def test_rerank_failure_log_does_not_include_exception_message(monkeypatch):
+    results = [
+        SearchResult(title="One", url="https://example.com/1", snippet="first"),
+        SearchResult(title="Two", url="https://example.com/2", snippet="second"),
+    ]
+    service = RerankService(
+        Settings(
+            gateway_api_key="test",
+            rerank_enabled=True,
+            rerank_base_url="https://private-endpoint.example/v1",
+            rerank_api_key="rr-key",
+            rerank_model="rerank-model",
+        )
+    )
+    log_calls = []
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            raise RuntimeError("private-endpoint.example secret detail")
+
+    monkeypatch.setattr("app.services.rerank_service.build_client", lambda *_args, **_kwargs: FakeClient())
+    monkeypatch.setattr(
+        "app.services.rerank_service.logger.warning",
+        lambda message, *args: log_calls.append((message, args)),
+    )
+
+    outcome = asyncio.run(service.rerank_with_status("query", results))
+
+    assert outcome.succeeded is False
+    assert log_calls == [("Rerank 调用失败，保留原始排序: {}", ("RuntimeError",))]
+    assert "private-endpoint.example" not in repr(log_calls)

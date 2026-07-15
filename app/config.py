@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     tavily_hikari_token: str = Field(default="", alias="TAVILY_HIKARI_TOKEN")
     tavily_hikari_url: str = Field(default="", alias="TAVILY_HIKARI_URL")
     exa_api_key: str = Field(default="", alias="EXA_API_KEY")
+    zhihu_api_key: str = Field(default="", alias="ZHIHU_API_KEY")
+    zhihu_timeout_seconds: float = Field(default=15.0, gt=0, le=120, alias="ZHIHU_TIMEOUT_SECONDS")
     firecrawl_api_key: str = Field(default="", alias="FIRECRAWL_API_KEY")
+    firecrawl_api_url: str = Field(default="https://api.firecrawl.dev/v2", alias="FIRECRAWL_API_URL")
     apiflash_access_key: str = Field(default="", alias="APIFLASH_ACCESS_KEY")
     apiflash_base_url: str = Field(default="https://api.apiflash.com/v1/urltoimage", alias="APIFLASH_BASE_URL")
     phantomjscloud_api_key: str = Field(default="", alias="PHANTOMJSCLOUD_API_KEY")
@@ -136,6 +139,24 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
     cache_ttl_seconds: int = Field(default=21600, alias="CACHE_TTL_SECONDS")
 
+    evidence_provider_order: str = Field(
+        default="brave,tavily,zhihu,exa,searxng,tavily_hikari,grok",
+        alias="EVIDENCE_PROVIDER_ORDER",
+    )
+    evidence_cache_ttl_seconds: int = Field(default=3600, alias="EVIDENCE_CACHE_TTL_SECONDS")
+    evidence_extract_concurrency: int = Field(default=3, alias="EVIDENCE_EXTRACT_CONCURRENCY")
+    evidence_max_content_chars: int = Field(default=12000, alias="EVIDENCE_MAX_CONTENT_CHARS")
+    evidence_auth_cooldown_seconds: int = Field(default=3600, alias="EVIDENCE_AUTH_COOLDOWN_SECONDS")
+    evidence_rate_limit_cooldown_seconds: int = Field(default=300, alias="EVIDENCE_RATE_LIMIT_COOLDOWN_SECONDS")
+    evidence_error_cooldown_seconds: int = Field(default=60, alias="EVIDENCE_ERROR_COOLDOWN_SECONDS")
+
+    answer_api_id: str = Field(default="configured_api", alias="ANSWER_API_ID")
+    answer_api_base_url: str = Field(default="", alias="ANSWER_API_BASE_URL")
+    answer_api_model: str = Field(default="", alias="ANSWER_API_MODEL")
+    answer_api_key: str = Field(default="", alias="ANSWER_API_KEY")
+    answer_api_timeout_seconds: float = Field(default=30.0, alias="ANSWER_API_TIMEOUT_SECONDS")
+    answer_api_max_tokens: int = Field(default=1000, alias="ANSWER_API_MAX_TOKENS")
+
     summary_provider: Literal["astrbot", "openai", "deepseek", "custom"] = Field(
         default="astrbot", alias="SUMMARY_PROVIDER"
     )
@@ -216,8 +237,10 @@ class Settings(BaseSettings):
         "crossref_base_url",
         "pubmed_base_url",
         "semantic_scholar_base_url",
+        "firecrawl_api_url",
         "rerank_base_url",
         "embedding_base_url",
+        "answer_api_base_url",
     )
     @classmethod
     def strip_provider_trailing_slash(cls, value: str) -> str:
