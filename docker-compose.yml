@@ -16,6 +16,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - default
+      - edge
     logging:
       driver: json-file
       options:
@@ -52,6 +55,9 @@ services:
       - HTTPS_PROXY=${HTTPS_PROXY:-}
       - ALL_PROXY=${ALL_PROXY:-}
       - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,groksearch-bridge,search-gateway-groksearch-bridge}
+    networks:
+      - default
+      - edge
     logging:
       driver: json-file
       options:
@@ -80,6 +86,7 @@ services:
       default:
         aliases:
           - searxng
+      edge: {}
     logging:
       driver: json-file
       options:
@@ -88,3 +95,8 @@ services:
 
 volumes:
   searxng-cache:
+
+networks:
+  edge:
+    name: ${EDGE_NETWORK_NAME:-search-gateway-edge}
+    external: ${EDGE_NETWORK_EXTERNAL:-false}

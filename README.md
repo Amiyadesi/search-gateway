@@ -55,6 +55,12 @@ The default Compose mapping binds the API to `127.0.0.1:8000`. Put a reverse
 proxy, tunnel, or firewall policy in front of it if it must be reachable from
 another machine.
 
+When the reverse proxy or tunnel runs in Docker, set `EDGE_NETWORK_NAME` to its
+shared network and `EDGE_NETWORK_EXTERNAL=true` before recreating the stack.
+The API, SearXNG, and the optional compatibility bridge then remain reachable
+after `docker compose up --force-recreate`; the default values create an
+isolated project-local edge network for ordinary installations.
+
 Authenticated requests use `X-API-Key` or a Bearer token:
 
 ```bash
@@ -74,6 +80,9 @@ Useful defaults:
 - `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` are optional
   deployment-local networking settings. The repository does not prescribe a
   proxy or network name.
+- `EDGE_NETWORK_NAME` and `EDGE_NETWORK_EXTERNAL` optionally attach the API and
+  networked helpers to an existing Docker network used by a reverse proxy,
+  tunnel, or egress proxy.
 - `SCREENSHOT_ALLOW_PRIVATE_URLS=false` blocks loopback and private-network
   screenshot targets by default.
 - `RERANK_*`, `EMBEDDING_*`, `GROK_*`, and `SUMMARY_*` are optional. A missing
