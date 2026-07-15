@@ -1,0 +1,23 @@
+use_default_settings: true
+
+general:
+  instance_name: "Search Gateway SearXNG"
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  default_lang: "auto"
+  formats:
+    - html
+    - json
+
+server:
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 15.0
+  enable_http2: true

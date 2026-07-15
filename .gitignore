@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+redis/*
+!redis/.gitkeep
