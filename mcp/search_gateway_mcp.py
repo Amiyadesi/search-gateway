@@ -16,7 +16,7 @@ from typing import Any
 SERVER_INFO = {"name": "ai-search-gateway", "version": "1.0.0"}
 DEFAULT_MCP_TEXT_MAX_CHARS = 60000
 DEFAULT_USE_PERSISTENT_SSH = True
-DEFAULT_REMOTE_DIR = "/opt/search-gateway"
+DEFAULT_REMOTE_DIR = "/root/search-gateway"
 SEARCH_PROVIDERS = [
     "auto",
     "grok",

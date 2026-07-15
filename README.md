@@ -94,7 +94,7 @@ deployment directory:
 
 ```text
 MCP_SEARCH_GATEWAY_SSH_HOST=your-ssh-alias
-MCP_SEARCH_GATEWAY_REMOTE_DIR=/opt/search-gateway
+MCP_SEARCH_GATEWAY_REMOTE_DIR=/root/search-gateway
 ```
 
 On the remote machine, `MCP_GATEWAY_ENV_FILE` can point to a deployment-local
