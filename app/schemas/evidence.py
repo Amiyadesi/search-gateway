@@ -12,6 +12,7 @@ from app.schemas.search import SEARCH_PROVIDERS
 EVIDENCE_VERSION = "1.0.0"
 ANSWER_SNAPSHOT_VERSION = "1.0.0"
 FailureStage = Literal["discovery", "fetch", "parse", "retrieval", "selection", "attribution"]
+AnswerTimeoutPhase = Literal["connect", "write", "read", "pool", "upstream", "gateway", "unknown"]
 RunStatus = Literal[
     "complete",
     "empty",
@@ -121,6 +122,10 @@ class EvidenceError(StrictModel):
     query: str | None = None
     source_id: str | None = None
     retry_after_seconds: int | None = None
+
+
+class AnswerApiError(EvidenceError):
+    timeout_phase: AnswerTimeoutPhase | None = None
 
 
 class EvidenceOrigin(StrictModel):
@@ -262,6 +267,15 @@ class AnswerCitation(StrictModel):
     snippet: str = ""
 
 
+class AnswerPhaseTiming(StrictModel):
+    connect_ms: int | None = Field(default=None, ge=0)
+    request_write_ms: int | None = Field(default=None, ge=0)
+    upstream_wait_ms: int | None = Field(default=None, ge=0)
+    response_read_ms: int | None = Field(default=None, ge=0)
+    total_ms: int = Field(ge=0)
+    upstream_wait_is_approximation: bool = True
+
+
 class AnswerObservation(StrictModel):
     query: str
     status: Literal["complete", "error"]
@@ -272,7 +286,8 @@ class AnswerObservation(StrictModel):
     answer: str | None = None
     citations: list[AnswerCitation] = Field(default_factory=list)
     usage: dict[str, int | float] = Field(default_factory=dict)
-    error: EvidenceError | None = None
+    timing: AnswerPhaseTiming | None = None
+    error: AnswerApiError | None = None
 
 
 class AnswerSnapshotUsage(StrictModel):
@@ -294,7 +309,7 @@ class AnswerSnapshotResponse(StrictModel):
     partial: bool
     degraded: bool
     zero_persistence: bool = True
-    errors: list[EvidenceError]
+    errors: list[AnswerApiError]
     limitations: list[str]
 
 

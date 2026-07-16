@@ -5,21 +5,23 @@ import secrets
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
 from app.config import Settings
 from app.schemas.evidence import (
+    AnswerApiError,
     AnswerCitation,
     AnswerModelsRequest,
     AnswerModelsResponse,
     AnswerObservation,
+    AnswerPhaseTiming,
     AnswerSnapshotRequest,
     AnswerSnapshotResponse,
     AnswerSnapshotUsage,
-    EvidenceError,
+    AnswerTimeoutPhase,
     sanitize_model_id,
     sanitize_usage,
 )
@@ -38,6 +40,83 @@ class _AnswerConfig:
     model: str
     api_key: str
     api_id: str
+
+
+class _AnswerTimingTrace:
+    _EVENT_FIELDS = (
+        (".connect_tcp", "connect_ms"),
+        (".connect_unix_socket", "connect_ms"),
+        (".start_tls", "connect_ms"),
+        (".send_request_headers", "request_write_ms"),
+        (".send_request_body", "request_write_ms"),
+        (".receive_response_headers", "upstream_wait_ms"),
+        (".receive_response_body", "response_read_ms"),
+    )
+    _TIMEOUT_PHASES: dict[str, AnswerTimeoutPhase] = {
+        "connect_ms": "connect",
+        "request_write_ms": "write",
+        "upstream_wait_ms": "upstream",
+        "response_read_ms": "read",
+    }
+
+    def __init__(self, clock: Callable[[], float] = time.perf_counter) -> None:
+        self._clock = clock
+        self._started: dict[str, tuple[float, str]] = {}
+        self._durations_ms: dict[str, float] = {}
+        self._last_failed_phase: AnswerTimeoutPhase | None = None
+
+    async def __call__(self, event: str, _info: dict[str, Any]) -> None:
+        self.record(event)
+
+    def record(self, event: str, at: float | None = None) -> None:
+        operation, separator, lifecycle = event.rpartition(".")
+        if not separator or lifecycle not in {"started", "complete", "failed"}:
+            return
+        field = self._field_for_operation(operation)
+        if field is None:
+            return
+        observed_at = self._clock() if at is None else at
+        if lifecycle == "started":
+            self._started[operation] = (observed_at, field)
+            return
+        started = self._started.pop(operation, None)
+        if started is not None:
+            started_at, started_field = started
+            elapsed_ms = max(0.0, (observed_at - started_at) * 1000)
+            self._durations_ms[started_field] = self._durations_ms.get(started_field, 0.0) + elapsed_ms
+        if lifecycle == "failed":
+            self._last_failed_phase = self._TIMEOUT_PHASES[field]
+        elif lifecycle == "complete":
+            self._last_failed_phase = None
+
+    def snapshot(self, total_ms: int) -> AnswerPhaseTiming:
+        return AnswerPhaseTiming(
+            connect_ms=self._rounded("connect_ms"),
+            request_write_ms=self._rounded("request_write_ms"),
+            upstream_wait_ms=self._rounded("upstream_wait_ms"),
+            response_read_ms=self._rounded("response_read_ms"),
+            total_ms=total_ms,
+        )
+
+    def timeout_phase(self) -> AnswerTimeoutPhase | None:
+        if self._last_failed_phase is not None:
+            return self._last_failed_phase
+        active_fields = {field for _, field in self._started.values()}
+        for field in ("upstream_wait_ms", "response_read_ms", "request_write_ms", "connect_ms"):
+            if field in active_fields:
+                return self._TIMEOUT_PHASES[field]
+        return None
+
+    @classmethod
+    def _field_for_operation(cls, operation: str) -> str | None:
+        for suffix, field in cls._EVENT_FIELDS:
+            if operation.endswith(suffix):
+                return field
+        return None
+
+    def _rounded(self, field: str) -> int | None:
+        value = self._durations_ms.get(field)
+        return None if value is None else max(0, round(value))
 
 
 class AnswerSnapshotService:
@@ -166,6 +245,7 @@ class AnswerSnapshotService:
     ) -> AnswerObservation:
         started = time.perf_counter()
         observed_at = datetime.now(UTC)
+        timing_trace = _AnswerTimingTrace()
         try:
             async with build_client(
                 self.settings,
@@ -193,6 +273,7 @@ class AnswerSnapshotService:
                         "temperature": 0.2,
                         "max_tokens": self.settings.answer_api_max_tokens,
                     },
+                    extensions={"trace": timing_trace},
                 )
                 self._raise_for_status(response)
                 data = response.json()
@@ -200,26 +281,34 @@ class AnswerSnapshotService:
             if not answer:
                 raise ValueError("missing answer text")
             observed_model = sanitize_model_id(data.get("model")) if isinstance(data, dict) else ""
+            elapsed_ms = max(0, round((time.perf_counter() - started) * 1000))
             return AnswerObservation(
                 query=query,
                 status="complete",
                 api_id=config.api_id,
                 model=observed_model or config.model,
                 observed_at=observed_at,
-                latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
+                latency_ms=elapsed_ms,
                 answer=answer,
                 citations=self._citations(data),
                 usage=sanitize_usage(data.get("usage") if isinstance(data, dict) else None),
+                timing=timing_trace.snapshot(elapsed_ms),
             )
         except Exception as exc:
-            error = self._classify_error(exc, query)
+            elapsed_ms = max(0, round((time.perf_counter() - started) * 1000))
+            error = self._classify_error(
+                exc,
+                query,
+                observed_timeout_phase=timing_trace.timeout_phase(),
+            )
             return AnswerObservation(
                 query=query,
                 status="error",
                 api_id=config.api_id,
                 model=config.model,
                 observed_at=observed_at,
-                latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
+                latency_ms=elapsed_ms,
+                timing=timing_trace.snapshot(elapsed_ms),
                 error=error,
             )
 
@@ -349,10 +438,12 @@ class AnswerSnapshotService:
 
     @classmethod
     def _gateway_error(cls, exc: Exception) -> GatewayError:
-        code, retryable, message, retry_after = cls._error_details(exc)
+        code, retryable, message, retry_after, timeout_phase = cls._error_details(exc)
         detail: dict[str, Any] = {"code": code, "retryable": retryable}
         if retry_after is not None:
             detail["retry_after_seconds"] = retry_after
+        if timeout_phase is not None:
+            detail["timeout_phase"] = timeout_phase
         return GatewayError(
             message,
             status_code=503 if retryable else 502,
@@ -360,9 +451,18 @@ class AnswerSnapshotService:
         )
 
     @classmethod
-    def _classify_error(cls, exc: Exception, query: str) -> EvidenceError:
-        code, retryable, message, retry_after = cls._error_details(exc)
-        return EvidenceError(
+    def _classify_error(
+        cls,
+        exc: Exception,
+        query: str,
+        *,
+        observed_timeout_phase: AnswerTimeoutPhase | None = None,
+    ) -> AnswerApiError:
+        code, retryable, message, retry_after, timeout_phase = cls._error_details(
+            exc,
+            observed_timeout_phase=observed_timeout_phase,
+        )
+        return AnswerApiError(
             code=code,
             scope="answer_api",
             stage="attribution",
@@ -370,19 +470,46 @@ class AnswerSnapshotService:
             message=message,
             query=query,
             retry_after_seconds=retry_after,
+            timeout_phase=timeout_phase,
         )
 
     @staticmethod
-    def _error_details(exc: Exception) -> tuple[str, bool, str, int | None]:
+    def _error_details(
+        exc: Exception,
+        *,
+        observed_timeout_phase: AnswerTimeoutPhase | None = None,
+    ) -> tuple[str, bool, str, int | None, AnswerTimeoutPhase | None]:
         retry_after: int | None = None
+        timeout_phase: AnswerTimeoutPhase | None = None
         if isinstance(exc, _AnswerApiRedirectError):
             code, retryable, message = (
                 "ANSWER_API_REDIRECT_BLOCKED",
                 False,
                 "The configured API attempted a redirect, which is not allowed.",
             )
+        elif isinstance(exc, httpx.ConnectTimeout):
+            code, retryable, message = "ANSWER_API_TIMEOUT", True, "The configured API connection timed out."
+            timeout_phase = observed_timeout_phase or "connect"
+        elif isinstance(exc, httpx.WriteTimeout):
+            code, retryable, message = (
+                "ANSWER_API_TIMEOUT",
+                True,
+                "The configured API request timed out while being sent.",
+            )
+            timeout_phase = observed_timeout_phase or "write"
+        elif isinstance(exc, httpx.ReadTimeout):
+            code, retryable, message = (
+                "ANSWER_API_TIMEOUT",
+                True,
+                "The configured API response timed out while being read.",
+            )
+            timeout_phase = observed_timeout_phase or "read"
+        elif isinstance(exc, httpx.PoolTimeout):
+            code, retryable, message = "ANSWER_API_TIMEOUT", True, "The configured API connection pool timed out."
+            timeout_phase = observed_timeout_phase or "pool"
         elif isinstance(exc, httpx.TimeoutException):
             code, retryable, message = "ANSWER_API_TIMEOUT", True, "The configured API timed out."
+            timeout_phase = observed_timeout_phase or "unknown"
         elif isinstance(exc, httpx.HTTPStatusError):
             status = exc.response.status_code
             if status in {401, 403}:
@@ -390,6 +517,20 @@ class AnswerSnapshotService:
             elif status == 429:
                 code, retryable, message = "ANSWER_API_RATE_LIMITED", True, "The configured API is rate limited."
                 retry_after = retry_after_seconds(exc.response)
+            elif status == 408:
+                code, retryable, message = (
+                    "ANSWER_API_TIMEOUT",
+                    True,
+                    "The configured API reported an upstream timeout.",
+                )
+                timeout_phase = "upstream"
+            elif status == 504:
+                code, retryable, message = (
+                    "ANSWER_API_TIMEOUT",
+                    True,
+                    "The configured API gateway reported a timeout.",
+                )
+                timeout_phase = "gateway"
             elif status >= 500:
                 code, retryable, message = "ANSWER_API_UPSTREAM_ERROR", True, "The configured API is unavailable."
             else:
@@ -410,4 +551,4 @@ class AnswerSnapshotService:
                 True,
                 "The configured API returned an invalid response.",
             )
-        return code, retryable, message, retry_after
+        return code, retryable, message, retry_after, timeout_phase

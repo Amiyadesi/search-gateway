@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Test
+        run: python -B -m pytest tests -q
+
+      - name: Compile Python sources
+        run: python -m compileall -q app mcp
+
+      - name: Validate Compose config
+        run: |
+          cp .env.example .env
+          docker compose config
+
+      - name: Build API image
+        run: docker build --tag search-gateway:ci .

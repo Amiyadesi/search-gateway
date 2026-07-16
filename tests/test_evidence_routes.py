@@ -102,6 +102,7 @@ def test_evidence_route_returns_structured_503(monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["errors"][0]["code"] == "PROVIDER_TIMEOUT"
+    assert "timeout_phase" not in response.json()["errors"][0]
 
 
 def test_answer_snapshot_route_passes_key_only_to_request_service(monkeypatch):

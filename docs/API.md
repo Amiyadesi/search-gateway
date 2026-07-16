@@ -144,6 +144,30 @@ metadata, per-query answer text, citations returned by that API, timing, numeric
 usage, statuses, limitations, and sanitized errors. It explicitly reports
 `zero_persistence: true`.
 
+`ANSWER_API_TIMEOUT_SECONDS` remains `30` by default. It is an HTTP transport
+phase timeout, not a claim about model-generation duration. Timeout errors retain
+the stable `ANSWER_API_TIMEOUT` code and include `timeout_phase` as `connect`,
+`write`, `read`, `pool`, `upstream`, `gateway`, or `unknown`. Trace data maps a
+response-header wait to `upstream` and a response-body timeout to `read`. A custom
+transport that emits no trace events falls back to the underlying `httpx`
+exception class.
+
+Each observation can include a sanitized `timing` object. `connect_ms` sums TCP
+or Unix-socket connection time and TLS setup; it is `null` when a reused
+connection emits no connection event. `request_write_ms` sums request header and
+body writes. `upstream_wait_ms` measures from the completed request write through
+complete response headers. It includes network latency, upstream queueing, and
+generation, so `upstream_wait_is_approximation` is always `true` and the value is
+not exact model-generation time. `response_read_ms` measures response-body reads,
+and `total_ms` is the complete gateway-side observation time. These fields are
+not mutually exclusive, and their sum can be lower than `total_ms` because total
+time also includes parsing and framework overhead.
+
+Timing uses the supported `httpcore` trace extension. The callback accepts only
+recognized event names and monotonic timestamps. It discards trace metadata and
+never stores or returns request URLs, headers, keys, bodies, response content, or
+exception text. Failed requests return any phases observed before the failure.
+
 This endpoint records API observations only. It does not claim equivalence to a
 provider's website, app, personalized account, region, or consumer search mode.
 
