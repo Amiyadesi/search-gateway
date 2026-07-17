@@ -1,4 +1,4 @@
-# Search Gateway API
+# Search Gateway API 1.2
 
 ## Authentication
 
@@ -154,7 +154,7 @@ and is disclosed in `limitations`.
 {
   "queries": ["question one"],
   "locale": "en-US",
-  "api_base_url": "https://api.example-provider.com/v1",
+  "api_base_url": "https://api.example-provider.com",
   "api_model": "example-model"
 }
 ```
@@ -168,7 +168,9 @@ Custom endpoints must use a credential-free public HTTPS hostname. IP literals,
 explicit ports, localhost/reserved names, private or reserved DNS answers,
 queries, fragments, and redirects are rejected. A trailing `/v1`,
 `/chat/completions`, or `/models` is normalized before the fixed endpoint path
-is appended.
+is appended. An origin-only URL automatically receives `/v1`; existing roots
+such as `/api/v1` remain unchanged. Pasting a full `/models` or
+`/chat/completions` endpoint backs up to its API root first.
 
 The response contains `snapshot_version`, observation time, configured API/model
 metadata, per-query answer text, citations returned by that API, timing, numeric
@@ -206,7 +208,7 @@ provider's website, app, personalized account, region, or consumer search mode.
 
 ```json
 {
-  "api_base_url": "https://api.example-provider.com/v1"
+  "api_base_url": "https://api.example-provider.com"
 }
 ```
 

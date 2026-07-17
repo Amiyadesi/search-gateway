@@ -1,4 +1,4 @@
-# Search Gateway
+# Search Gateway 1.2
 
 An authenticated FastAPI gateway that gives AI tools one local API for web
 search, page extraction, screenshots, research summaries, and optional MCP
@@ -100,7 +100,10 @@ Useful defaults:
 - `ANSWER_API_BASE_URL`, `ANSWER_API_MODEL`, and optional `ANSWER_API_KEY`
   configure the fixed OpenAI-compatible fallback. A request can instead submit
   `api_base_url` and `api_model` together with `X-Answer-API-Key`; that custom
-  request never uses the server key.
+  request never uses the server key. An origin-only URL such as
+  `https://api.example.com` becomes `https://api.example.com/v1`; pasted
+  `/models` or `/chat/completions` suffixes are removed, while custom roots such
+  as `/api/v1` remain unchanged.
 
 Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
 
@@ -157,7 +160,7 @@ curl -X POST "http://127.0.0.1:8000/v1/answer-snapshots" \
   -d '{
     "queries":["What is evidence-first GEO auditing?"],
     "locale":"en-US",
-    "api_base_url":"https://api.example-provider.com/v1",
+    "api_base_url":"https://api.example-provider.com",
     "api_model":"example-model"
   }'
 ```
@@ -165,7 +168,8 @@ curl -X POST "http://127.0.0.1:8000/v1/answer-snapshots" \
 `api_base_url` and `api_model` must be provided together. The custom URL must
 be a credential-free public HTTPS hostname with no explicit port, query, or
 fragment. DNS answers are checked before the call, redirects are rejected, and
-the server fallback key is never used for a custom endpoint.
+the server fallback key is never used for a custom endpoint. Copying only the
+API origin is enough because `/v1` is appended automatically.
 
 Model selection can use the same request-scoped key without exposing upstream
 metadata:
@@ -175,7 +179,7 @@ curl -X POST "http://127.0.0.1:8000/v1/answer-models" \
   -H "X-API-Key: $GATEWAY_API_KEY" \
   -H "X-Answer-API-Key: $REQUEST_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"api_base_url":"https://api.example-provider.com/v1"}'
+  -d '{"api_base_url":"https://api.example-provider.com"}'
 ```
 
 The model response contains at most 100 unique printable IDs of at most 200

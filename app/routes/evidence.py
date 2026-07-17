@@ -18,7 +18,12 @@ from app.utils.auth import require_api_key
 router = APIRouter(prefix="/v1", tags=["evidence-v1"])
 
 
-@router.post("/evidence-search", response_model=EvidenceSearchResponse)
+@router.post(
+    "/evidence-search",
+    response_model=EvidenceSearchResponse,
+    summary="Collect bounded multi-source search evidence",
+    description="Runs one to three explicit queries with provenance, budgets, partial failures, and zero score semantics.",
+)
 async def evidence_search(
     payload: EvidenceSearchRequest,
     _: None = Depends(require_api_key),
@@ -37,7 +42,15 @@ async def evidence_search(
     return response
 
 
-@router.post("/answer-snapshots", response_model=AnswerSnapshotResponse)
+@router.post(
+    "/answer-snapshots",
+    response_model=AnswerSnapshotResponse,
+    summary="Observe answers from one OpenAI-compatible API",
+    description=(
+        "Uses either the server endpoint or one request-scoped API key/base/model. "
+        "An origin-only base URL is normalized to /v1; credentials are never returned or persisted."
+    ),
+)
 async def answer_snapshots(
     payload: AnswerSnapshotRequest,
     x_answer_api_key: str | None = Header(default=None, alias="X-Answer-API-Key"),
@@ -56,7 +69,14 @@ async def answer_snapshots(
     return response
 
 
-@router.post("/answer-models", response_model=AnswerModelsResponse)
+@router.post(
+    "/answer-models",
+    response_model=AnswerModelsResponse,
+    summary="List sanitized model IDs",
+    description=(
+        "Calls only the normalized request-scoped /models endpoint. Root URLs receive /v1 automatically."
+    ),
+)
 async def answer_models(
     payload: AnswerModelsRequest,
     x_answer_api_key: str | None = Header(default=None, alias="X-Answer-API-Key"),

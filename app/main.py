@@ -19,7 +19,17 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="1.1.0", lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    version="1.2.0",
+    description=(
+        "Authenticated, provider-neutral search and evidence gateway. "
+        "Answer snapshots are dated API observations and do not represent consumer interfaces."
+    ),
+    docs_url="/docs",
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
+)
 
 app.include_router(health.router)
 app.include_router(search.router)

@@ -27,7 +27,11 @@ from app.schemas.evidence import (
 )
 from app.utils.errors import GatewayError
 from app.utils.http import build_client, retry_after_seconds
-from app.utils.url_normalization import normalize_url, validate_public_https_api_base_url
+from app.utils.url_normalization import (
+    normalize_answer_api_path,
+    normalize_url,
+    validate_public_https_api_base_url,
+)
 
 
 class _AnswerApiRedirectError(Exception):
@@ -326,12 +330,7 @@ class AnswerSnapshotService:
             return ""
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
             return ""
-        path = (parsed.path or "").rstrip("/")
-        lowered_path = path.casefold()
-        for suffix in ("/chat/completions", "/models"):
-            if lowered_path.endswith(suffix):
-                path = path[: -len(suffix)].rstrip("/")
-                break
+        path = normalize_answer_api_path(parsed.path)
         hostname = parsed.hostname.casefold().rstrip(".")
         netloc = f"{hostname}:{port}" if port is not None else hostname
         return urlunsplit((parsed.scheme.casefold(), netloc, path, "", ""))

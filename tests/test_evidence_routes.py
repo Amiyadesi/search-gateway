@@ -18,6 +18,17 @@ from app.schemas.evidence import (
 )
 
 
+def test_openapi_reports_1_2_contract_and_custom_api_guidance():
+    schema = app.openapi()
+
+    assert schema["info"]["version"] == "1.2.0"
+    answer_route = schema["paths"]["/v1/answer-snapshots"]["post"]
+    models_route = schema["paths"]["/v1/answer-models"]["post"]
+    assert answer_route["summary"] == "Observe answers from one OpenAI-compatible API"
+    assert "/v1" in answer_route["description"]
+    assert "/v1" in models_route["description"]
+
+
 def test_evidence_contract_accepts_zhihu_as_an_explicit_provider():
     payload = EvidenceQueryPlan(
         queries=["中文 GEO"],

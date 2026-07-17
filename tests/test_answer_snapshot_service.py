@@ -156,6 +156,49 @@ def test_answer_snapshot_uses_request_scoped_custom_endpoint_and_model(monkeypat
     assert result.model == "custom-model"
 
 
+def test_answer_snapshot_adds_v1_for_request_scoped_origin(monkeypatch):
+    calls = []
+    response = FakeResponse({"choices": [{"message": {"content": "Custom answer"}}]})
+    monkeypatch.setattr(
+        "app.services.answer_snapshot_service.build_client",
+        lambda *_args, **_kwargs: FakeClient(response, calls),
+    )
+    monkeypatch.setattr(
+        "app.utils.url_normalization.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("8.8.8.8", 443))],
+    )
+    service = AnswerSnapshotService(settings())
+
+    result = asyncio.run(
+        service.observe(
+            AnswerSnapshotRequest(
+                queries=["question"],
+                api_base_url="https://api.public-service.com",
+                api_model="custom-model",
+            ),
+            request_api_key="request-secret",
+        )
+    )
+
+    assert result.success is True
+    assert calls[0][0] == "https://api.public-service.com/v1/chat/completions"
+
+
+def test_answer_snapshot_adds_v1_for_configured_origin(monkeypatch):
+    calls = []
+    response = FakeResponse({"choices": [{"message": {"content": "Configured answer"}}]})
+    monkeypatch.setattr(
+        "app.services.answer_snapshot_service.build_client",
+        lambda *_args, **_kwargs: FakeClient(response, calls),
+    )
+    service = AnswerSnapshotService(settings(answer_api_base_url="https://fixed.example"))
+
+    result = asyncio.run(service.observe(AnswerSnapshotRequest(queries=["question"])))
+
+    assert result.success is True
+    assert calls[0][0] == "https://fixed.example/v1/chat/completions"
+
+
 def test_answer_timing_trace_aggregates_supported_phases_without_metadata():
     trace = _AnswerTimingTrace()
     events = [

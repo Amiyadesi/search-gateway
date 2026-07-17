@@ -179,13 +179,19 @@ def normalize_answer_api_base_url(value: str) -> str:
     if hostname in _RESERVED_API_HOSTS or hostname.endswith(_RESERVED_API_SUFFIXES):
         raise _answer_api_url_error()
 
-    path = (parsed.path or "").rstrip("/")
+    path = normalize_answer_api_path(parsed.path)
+    return urlunsplit(("https", hostname, path, "", ""))
+
+
+def normalize_answer_api_path(value: str | None) -> str:
+    """Return an OpenAI-compatible API root path without an endpoint suffix."""
+    path = (value or "").rstrip("/")
     lowered_path = path.casefold()
     for suffix in ("/chat/completions", "/models"):
         if lowered_path.endswith(suffix):
             path = path[: -len(suffix)].rstrip("/")
             break
-    return urlunsplit(("https", hostname, path, "", ""))
+    return path or "/v1"
 
 
 async def validate_public_https_api_base_url(value: str) -> str:

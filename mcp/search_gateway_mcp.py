@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 
-SERVER_INFO = {"name": "ai-search-gateway", "version": "1.1.0"}
+SERVER_INFO = {"name": "ai-search-gateway", "version": "1.2.0"}
 DEFAULT_MCP_TEXT_MAX_CHARS = 60000
 DEFAULT_USE_PERSISTENT_SSH = True
 DEFAULT_REMOTE_DIR = "/root/search-gateway"

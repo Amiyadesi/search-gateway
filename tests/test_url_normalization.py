@@ -56,16 +56,21 @@ def test_private_url_is_rejected(monkeypatch):
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
+        ("https://api.public-service.com", "https://api.public-service.com/v1"),
+        ("https://api.public-service.com/", "https://api.public-service.com/v1"),
         ("https://api.public-service.com/v1", "https://api.public-service.com/v1"),
+        ("https://api.public-service.com/api/v1", "https://api.public-service.com/api/v1"),
         (
             "https://api.public-service.com/v1/chat/completions/",
             "https://api.public-service.com/v1",
         ),
         (
             "https://api.public-service.com/chat/completions",
-            "https://api.public-service.com",
+            "https://api.public-service.com/v1",
         ),
         ("https://api.public-service.com/v1/models", "https://api.public-service.com/v1"),
+        ("https://api.public-service.com/api/v1/models", "https://api.public-service.com/api/v1"),
+        ("https://api.public-service.com/openai", "https://api.public-service.com/openai"),
     ],
 )
 def test_answer_api_base_url_normalization(value, expected):
