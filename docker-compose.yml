@@ -16,6 +16,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     networks:
       - default
       - edge
@@ -26,7 +32,7 @@ services:
         max-file: "3"
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.5-alpine@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
     container_name: search-gateway-redis
     restart: unless-stopped
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
@@ -55,6 +61,12 @@ services:
       - HTTPS_PROXY=${HTTPS_PROXY:-}
       - ALL_PROXY=${ALL_PROXY:-}
       - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,groksearch-bridge,search-gateway-groksearch-bridge}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/healthz', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     networks:
       - default
       - edge
@@ -65,7 +77,7 @@ services:
         max-file: "2"
 
   searxng:
-    image: ${SEARXNG_IMAGE:-ghcr.io/searxng/searxng:latest}
+    image: ${SEARXNG_IMAGE:-ghcr.io/searxng/searxng@sha256:969e3d79c400b26b7b83c023ef48300d9e122e0828ef7160daac990b1ac27d7c}
     container_name: search-gateway-searxng
     profiles: ["searxng"]
     restart: unless-stopped

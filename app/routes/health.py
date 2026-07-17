@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 
 from app.config import Settings, get_settings
 from app.providers.grok import GrokProvider
 from app.providers.tavily import TavilyProvider
-from app.schemas.health import HealthResponse, ProviderHealth
+from app.schemas.health import HealthResponse, ProviderHealth, ReadinessResponse
+from app.services.readiness_service import ReadinessService
 from app.utils.auth import require_api_key
 from app.services.cache_service import CacheService
 from app.services.screenshot_service import ScreenshotService
@@ -14,6 +15,17 @@ router = APIRouter(tags=["health"])
 @router.get("/healthz")
 async def healthz() -> dict[str, bool]:
     return {"success": True}
+
+
+@router.get("/readyz", response_model=ReadinessResponse)
+async def readyz(
+    response: Response,
+    settings: Settings = Depends(get_settings),
+) -> ReadinessResponse:
+    result = await ReadinessService(settings).check()
+    if not result.success:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return result
 
 
 @router.get("/health", response_model=HealthResponse)

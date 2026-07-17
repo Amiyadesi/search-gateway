@@ -1,0 +1,96 @@
+name: Release images
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  API_IMAGE: ghcr.io/amiyadesi/search-gateway-api
+  BRIDGE_IMAGE: ghcr.io/amiyadesi/search-gateway-groksearch-bridge
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main for manual releases
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Manual image releases must run from main."
+          exit 1
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Select immutable tags
+        id: tags
+        shell: bash
+        run: |
+          api_tags="${API_IMAGE}:sha-${GITHUB_SHA}"
+          bridge_tags="${BRIDGE_IMAGE}:sha-${GITHUB_SHA}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            api_tags+=$'\n'"${API_IMAGE}:${GITHUB_REF_NAME}"
+            bridge_tags+=$'\n'"${BRIDGE_IMAGE}:${GITHUB_REF_NAME}"
+          fi
+          {
+            echo 'api<<EOF'
+            echo "${api_tags}"
+            echo 'EOF'
+            echo 'bridge<<EOF'
+            echo "${bridge_tags}"
+            echo 'EOF'
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish API image
+        id: api
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.api }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Publish GrokSearch bridge image
+        id: bridge
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./groksearch-bridge
+          file: ./groksearch-bridge/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.bridge }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=bridge
+          cache-to: type=gha,mode=max,scope=bridge
+
+      - name: Record published digests
+        run: |
+          echo "API: ${API_IMAGE}@${{ steps.api.outputs.digest }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Bridge: ${BRIDGE_IMAGE}@${{ steps.bridge.outputs.digest }}" >> "${GITHUB_STEP_SUMMARY}"

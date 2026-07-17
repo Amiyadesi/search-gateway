@@ -26,8 +26,10 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
 - `POST /summary`, `POST /research`, and `POST /analyze-url` compose the
   available evidence into a bounded result. They return a deterministic
   degraded response when an optional model is unavailable.
-- `GET /healthz` is an unauthenticated liveness endpoint; `GET /health` shows
-  non-secret provider configuration state.
+- `GET /healthz` is an unauthenticated, dependency-free liveness endpoint.
+  `GET /readyz` checks only configured internal Redis, SearXNG, and GrokSearch
+  bridge dependencies; `GET /health` shows non-secret provider configuration
+  state.
 - `mcp/search_gateway_mcp.py` is an optional stdio MCP adapter. It can call a
   gateway over SSH without keeping the gateway API key on the local machine.
 
@@ -49,6 +51,7 @@ cp .env.example .env
 # Set GATEWAY_API_KEY and the provider settings you intend to use.
 docker compose up -d --build
 curl http://127.0.0.1:8000/healthz
+curl http://127.0.0.1:8000/readyz
 ```
 
 The default Compose mapping binds the API to `127.0.0.1:8000`. Put a reverse
@@ -76,7 +79,7 @@ reranking, embedding, and summary endpoints.
 
 Useful defaults:
 
-- `GATEWAY_API_KEY` protects every endpoint except `/healthz`.
+- `GATEWAY_API_KEY` protects every endpoint except `/healthz` and `/readyz`.
 - `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` are optional
   deployment-local networking settings. The repository does not prescribe a
   proxy or network name.
@@ -106,6 +109,7 @@ Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/healthz` | Liveness probe without credentials |
+| `GET` | `/readyz` | Readiness probe for configured internal dependencies |
 | `GET` | `/health` | Authenticated provider and cache status |
 | `GET` | `/search` | Search with an optional `provider` selector |
 | `POST` | `/v1/evidence-search` | Bounded, fused, provenance-rich search evidence |
@@ -205,13 +209,27 @@ secret.
 
 ```bash
 python -B -m pytest tests -q
-python -m compileall -q app mcp
+python -m compileall -q app mcp groksearch-bridge/bridge.py
 docker compose config
+docker compose build api groksearch-bridge
 ```
 
 Run the tests before changing routing, provider configuration, or the MCP
 adapter. Provider additions should update settings, route validation, health
 reporting, documentation, and tests together.
+
+## Image releases
+
+`.github/workflows/release-images.yml` publishes the API and GrokSearch bridge
+to GHCR only for a `v*` tag or a manual run from `main`. It never deploys a
+production stack and never creates a mutable `latest` tag. Every run publishes
+`sha-<git-sha>` tags; tag-triggered runs also publish the matching `v*` tag and
+record both content digests in the workflow summary. Production Compose files
+should pin the reported digest rather than following a tag.
+
+Base images, third-party service images, and GitHub Actions are pinned. Update
+those references deliberately in a reviewed change, then run the complete
+test, Compose, and image-build checks before releasing.
 
 ## Security and privacy
 

@@ -2,12 +2,43 @@
 
 ## Authentication
 
-Every endpoint except `GET /healthz` requires the deployment's gateway key via
-`X-API-Key` or `Authorization: Bearer ...`.
+Every endpoint except `GET /healthz` and `GET /readyz` requires the deployment's
+gateway key via `X-API-Key` or `Authorization: Bearer ...`.
 
 `POST /v1/answer-snapshots` accepts `X-Answer-API-Key` only for request-scoped
 custom API configuration. `POST /v1/answer-models` always requires it. This
 header is not a gateway credential and is never persisted or returned.
+
+## Liveness and readiness
+
+`GET /healthz` is a dependency-free process liveness check and always returns
+HTTP 200 while the FastAPI process can serve requests:
+
+```json
+{"success": true}
+```
+
+`GET /readyz` checks Redis plus SearXNG and the GrokSearch bridge when those
+features are enabled. It calls only Redis `PING` and each internal service's
+`/healthz`; it never invokes a search or paid external provider. The response
+has stable check names and never includes configured URLs, keys, or exception
+messages:
+
+```json
+{
+  "success": true,
+  "status": "ready",
+  "checks": {
+    "redis": {"status": "ok", "required": true, "configured": true},
+    "searxng": {"status": "disabled", "required": false, "configured": false},
+    "groksearch_bridge": {"status": "disabled", "required": false, "configured": false}
+  }
+}
+```
+
+Required checks use `ok`, `misconfigured`, or `unavailable`; disabled optional
+checks use `disabled`. HTTP 200 means all required checks are `ok`. Any required
+failure returns HTTP 503 with `success: false` and `status: not_ready`.
 
 ## Evidence v1
 

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -12,3 +14,15 @@ class HealthResponse(BaseModel):
     api: str
     redis: str
     providers: dict[str, ProviderHealth]
+
+
+class DependencyHealth(BaseModel):
+    status: Literal["ok", "disabled", "misconfigured", "unavailable"]
+    required: bool
+    configured: bool
+
+
+class ReadinessResponse(BaseModel):
+    success: bool
+    status: Literal["ready", "not_ready"]
+    checks: dict[str, DependencyHealth]
