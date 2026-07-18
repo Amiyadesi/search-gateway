@@ -124,6 +124,55 @@ def test_answer_snapshot_uses_fixed_endpoint_and_server_key(monkeypatch):
     assert "request-secret" not in json.dumps(result.model_dump(mode="json"))
 
 
+def test_answer_snapshot_requests_a_concise_final_answer_without_reasoning(monkeypatch):
+    calls = []
+    response = FakeResponse({"choices": [{"message": {"content": "Final answer"}}]})
+    monkeypatch.setattr(
+        "app.services.answer_snapshot_service.build_client",
+        lambda *_args, **_kwargs: FakeClient(response, calls),
+    )
+    service = AnswerSnapshotService(settings())
+
+    result = asyncio.run(service.observe(AnswerSnapshotRequest(queries=["question"])))
+
+    assert result.success is True
+    system_prompt = calls[0][1]["json"]["messages"][0]["content"]
+    assert "concise final answer" in system_prompt
+    assert "Do not include chain-of-thought" in system_prompt
+    assert "No verifiable answer available." in system_prompt
+
+
+def test_answer_snapshot_distinguishes_exhausted_reasoning_without_final_content(monkeypatch):
+    calls = []
+    response = FakeResponse(
+        {
+            "choices": [
+                {
+                    "finish_reason": "length",
+                    "message": {
+                        "content": None,
+                        "reasoning_content": "private reasoning that must not be returned",
+                    },
+                }
+            ]
+        }
+    )
+    monkeypatch.setattr(
+        "app.services.answer_snapshot_service.build_client",
+        lambda *_args, **_kwargs: FakeClient(response, calls),
+    )
+    service = AnswerSnapshotService(settings())
+
+    result = asyncio.run(service.observe(AnswerSnapshotRequest(queries=["question"])))
+    serialized = json.dumps(result.model_dump(mode="json"))
+
+    assert result.success is False
+    assert result.errors[0].code == "ANSWER_API_NO_FINAL_CONTENT"
+    assert result.errors[0].retryable is False
+    assert "reasoning_content" not in serialized
+    assert "private reasoning" not in serialized
+
+
 def test_answer_snapshot_uses_request_scoped_custom_endpoint_and_model(monkeypatch):
     calls = []
     response = FakeResponse({"choices": [{"message": {"content": "Custom answer"}}]})

@@ -249,7 +249,8 @@ Custom answer API failures use the normal gateway envelope with stable codes:
 `ANSWER_API_REDIRECT_BLOCKED`, `ANSWER_API_AUTH_ERROR`,
 `ANSWER_API_RATE_LIMITED`, `ANSWER_API_TIMEOUT`,
 `ANSWER_API_NETWORK_ERROR`, `ANSWER_API_UPSTREAM_ERROR`,
-`ANSWER_API_INVALID_REQUEST`, or `ANSWER_API_MALFORMED_RESPONSE`. Error
+`ANSWER_API_INVALID_REQUEST`, `ANSWER_API_NO_FINAL_CONTENT`, or
+`ANSWER_API_MALFORMED_RESPONSE`. Error
 responses never include the key, custom base URL, redirect location, or raw
 upstream body.
 

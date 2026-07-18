@@ -38,6 +38,10 @@ class _AnswerApiRedirectError(Exception):
     pass
 
 
+class _AnswerApiNoFinalContentError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class _AnswerConfig:
     base_url: str
@@ -268,8 +272,10 @@ class AnswerSnapshotService:
                             {
                                 "role": "system",
                                 "content": (
-                                    "Answer accurately in the requested locale. Preserve source URLs returned by the API "
-                                    "and do not invent citations."
+                                    "Return a concise final answer in the requested locale. "
+                                    "Do not include chain-of-thought, internal reasoning, or analysis. "
+                                    "Preserve source URLs returned by the API and do not invent citations. "
+                                    "If no answer can be verified, return exactly: No verifiable answer available."
                                 ),
                             },
                             {"role": "user", "content": f"Locale: {locale}\n\n{query}"},
@@ -283,6 +289,8 @@ class AnswerSnapshotService:
                 data = response.json()
             answer = self._answer_text(data)
             if not answer:
+                if self._finish_reason(data) == "length":
+                    raise _AnswerApiNoFinalContentError()
                 raise ValueError("missing answer text")
             observed_model = sanitize_model_id(data.get("model")) if isinstance(data, dict) else ""
             elapsed_ms = max(0, round((time.perf_counter() - started) * 1000))
@@ -370,6 +378,16 @@ class AnswerSnapshotService:
                 return content.strip()
         text = choices[0].get("text")
         return text.strip() if isinstance(text, str) else ""
+
+    @staticmethod
+    def _finish_reason(data: Any) -> str:
+        if not isinstance(data, dict):
+            return ""
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            return ""
+        reason = choices[0].get("finish_reason")
+        return reason.strip().casefold() if isinstance(reason, str) else ""
 
     @classmethod
     def _citations(cls, data: Any) -> list[AnswerCitation]:
@@ -485,6 +503,12 @@ class AnswerSnapshotService:
                 "ANSWER_API_REDIRECT_BLOCKED",
                 False,
                 "The configured API attempted a redirect, which is not allowed.",
+            )
+        elif isinstance(exc, _AnswerApiNoFinalContentError):
+            code, retryable, message = (
+                "ANSWER_API_NO_FINAL_CONTENT",
+                False,
+                "The configured API exhausted its output budget without producing a final answer.",
             )
         elif isinstance(exc, httpx.ConnectTimeout):
             code, retryable, message = "ANSWER_API_TIMEOUT", True, "The configured API connection timed out."
