@@ -26,6 +26,7 @@ SEARCH_PROVIDERS = [
     "semantic_scholar",
     "internet_archive",
     "common_crawl",
+    "serpjet",
 ]
 SEARCH_PROVIDER_PATTERN = "^(" + "|".join(SEARCH_PROVIDERS) + ")$"
 

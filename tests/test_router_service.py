@@ -78,6 +78,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily",
         "tavily_hikari",
         "exa",
+        "serpjet",
     ]
     assert RouterService._provider_order("brave", allow_fallback=True) == [
         "brave",
@@ -85,6 +86,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily_hikari",
         "exa",
         "searxng",
+        "serpjet",
     ]
     assert RouterService._provider_order("exa", allow_fallback=True) == [
         "exa",
@@ -92,6 +94,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily",
         "tavily_hikari",
         "searxng",
+        "serpjet",
     ]
     assert RouterService._provider_order("searxng", allow_fallback=True, grok_enabled=True) == [
         "searxng",
@@ -100,6 +103,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily",
         "tavily_hikari",
         "exa",
+        "serpjet",
     ]
 
 
@@ -236,6 +240,19 @@ def test_evidence_auto_candidates_include_only_configured_general_sources():
     )
 
     assert service.evidence_provider_candidates("FastAPI evidence") == ["brave", "tavily"]
+
+
+def test_serpjet_is_configured_as_last_auto_fallback_and_optional_evidence_source():
+    service = RouterService(
+        Settings(
+            gateway_api_key="test",
+            serpjet_api_keys="first,second",
+        )
+    )
+
+    assert service.provider_configured("serpjet") is True
+    assert RouterService._provider_order("brave", allow_fallback=True)[-1] == "serpjet"
+    assert service.evidence_provider_candidates("FastAPI evidence") == ["serpjet"]
 
 
 def test_evidence_raw_search_skips_legacy_per_provider_rerank(monkeypatch):

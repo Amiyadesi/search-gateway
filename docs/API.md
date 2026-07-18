@@ -2,8 +2,9 @@
 
 ## Authentication
 
-Every endpoint except `GET /healthz` and `GET /readyz` requires the deployment's
-gateway key via `X-API-Key` or `Authorization: Bearer ...`.
+Every API endpoint except `GET /healthz` requires the deployment's gateway key
+via `X-API-Key` or `Authorization: Bearer ...`. `GET /docs` is a static project
+introduction and is not an API console.
 
 `POST /v1/answer-snapshots` accepts `X-Answer-API-Key` only for request-scoped
 custom API configuration. `POST /v1/answer-models` always requires it. This
@@ -18,11 +19,11 @@ HTTP 200 while the FastAPI process can serve requests:
 {"success": true}
 ```
 
-`GET /readyz` checks Redis plus SearXNG and the GrokSearch bridge when those
-features are enabled. It calls only Redis `PING` and each internal service's
-`/healthz`; it never invokes a search or paid external provider. The response
-has stable check names and never includes configured URLs, keys, or exception
-messages:
+Authenticated `GET /readyz` checks Redis plus SearXNG and the GrokSearch bridge
+when those features are enabled. It calls only Redis `PING` and each internal
+service's `/healthz`; it never invokes a search or paid external provider. The
+response has stable check names and never includes configured URLs, keys, or
+exception messages:
 
 ```json
 {
@@ -40,7 +41,22 @@ Required checks use `ok`, `misconfigured`, or `unavailable`; disabled optional
 checks use `disabled`. HTTP 200 means all required checks are `ok`. Any required
 failure returns HTTP 503 with `success: false` and `status: not_ready`.
 
+## Documentation exposure
+
+- `GET /docs` is deliberately limited to a public project description. It does
+  not enumerate routes, headers, schemas, internal dependencies, or production
+  request examples.
+- `GET /openapi.json` requires the gateway key and sends `Cache-Control:
+  no-store`. Fetch it only from a deployment you own or are authorized to use.
+- Repository documentation describes how to operate a self-hosted deployment;
+  it does not grant access to the Sayori production instance.
+
 ## Evidence v1
+
+When SerpJet is configured, the gateway sends its server-owned key only to
+[SerpJet's fixed API](https://serpjet.io/docs.html) in the required
+`X-API-KEY` header. Configure one or two keys with `SERPJET_API_KEYS`; clients
+never submit or receive them.
 
 ### `POST /v1/evidence-search`
 

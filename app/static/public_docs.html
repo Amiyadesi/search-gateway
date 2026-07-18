@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Search Gateway 是一个自托管的搜索、网页提取与证据整理服务">
+  <title>Search Gateway</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #15202b;
+      --muted: #52606d;
+      --paper: #f7f4ed;
+      --panel: #fffdf8;
+      --line: #d9d2c3;
+      --accent: #245d57;
+    }
+    * { box-sizing: border-box }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 16px/1.7 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(880px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 }
+    article {
+      padding: clamp(28px, 6vw, 60px);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 18px 48px rgba(44, 38, 28, .08);
+    }
+    .eyebrow { margin: 0 0 10px; color: var(--accent); font-weight: 750; letter-spacing: .08em; text-transform: uppercase }
+    h1 { margin: 0; font-size: clamp(2.2rem, 7vw, 4.5rem); line-height: 1.02; letter-spacing: -.045em }
+    .lead { max-width: 720px; margin: 24px 0 0; color: var(--muted); font-size: 1.13rem }
+    section { margin-top: 42px; padding-top: 32px; border-top: 1px solid var(--line) }
+    h2 { margin: 0 0 14px; font-size: 1.35rem }
+    p { margin: 0 0 14px }
+    ul { margin: 0; padding-left: 1.25rem }
+    li + li { margin-top: 8px }
+    .notice { padding: 18px 20px; border-left: 4px solid var(--accent); background: #edf5f2; color: #23413d }
+    .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px }
+    a { color: var(--accent); font-weight: 700; text-underline-offset: 3px }
+    .button { padding: 10px 15px; border: 1px solid var(--accent); border-radius: 999px; text-decoration: none }
+    .en { color: var(--muted) }
+    @media (max-width: 560px) { main { padding: 20px 0 } article { border-radius: 16px } }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <p class="eyebrow">Self-hosted evidence infrastructure</p>
+      <h1>Search Gateway</h1>
+      <p class="lead">把多个搜索、网页提取与模型能力整理成一条可控的证据链，供站长自己的工具、自动化和研究流程使用</p>
+
+      <section>
+        <h2>它解决什么问题</h2>
+        <ul>
+          <li>统一不同来源的搜索结果并去重</li>
+          <li>抓取公开网页，保留来源和时间信息</li>
+          <li>生成带限制说明的证据快照，避免把搜索结果冒充消费端 AI 引用</li>
+          <li>作为 GeoScore 的可选证据来源，不参与事实评分</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>公开服务边界</h2>
+        <p class="notice">这个页面只介绍项目，不提供在线调试器、生产 API 示例、内部健康详情或部署配置</p>
+        <p>公开实例是站长自用基础设施，不承诺向第三方开放调用。想研究、部署或贡献代码，请查看开源仓库，并在自己的环境中配置凭据和访问策略</p>
+      </section>
+
+      <section class="en" lang="en">
+        <h2>English summary</h2>
+        <p>Search Gateway is a self-hosted layer for search, public-page extraction, and dated evidence snapshots. This page is an introduction only. The public deployment does not expose an interactive API console, production request examples, internal readiness details, or configuration values</p>
+      </section>
+
+      <div class="links">
+        <a class="button" href="https://github.com/Amiyadesi/search-gateway" rel="noopener">GitHub source</a>
+        <a class="button" href="https://geo.sayori.org/" rel="noopener">GeoScore</a>
+        <a class="button" href="https://sayori.org/" rel="noopener">sayori.org</a>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

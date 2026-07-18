@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Search Gateway"
+  short_description: "Connect agents to authorized search evidence"
+  default_prompt: "Use $use-search-gateway to research this question through my authorized Search Gateway and preserve source provenance."

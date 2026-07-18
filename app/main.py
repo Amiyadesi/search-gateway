@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.config import get_settings
 from app.routes import evidence, extract, health, ipinfo, screenshot, search, summary
+from app.utils.auth import require_api_key
 from app.utils.errors import GatewayError
 from app.utils.logging import configure_logging, logger
 
@@ -19,15 +21,19 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
+public_docs_html = (Path(__file__).parent / "static" / "public_docs.html").read_text(
+    encoding="utf-8"
+)
 app = FastAPI(
     title=settings.app_name,
-    version="1.2.0",
+    version="1.2.1",
     description=(
         "Authenticated, provider-neutral search and evidence gateway. "
         "Answer snapshots are dated API observations and do not represent consumer interfaces."
     ),
-    docs_url="/docs",
-    openapi_url="/openapi.json",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan,
 )
 
@@ -38,6 +44,27 @@ app.include_router(screenshot.router)
 app.include_router(summary.router)
 app.include_router(ipinfo.router)
 app.include_router(evidence.router)
+
+
+@app.get("/docs", include_in_schema=False, response_class=HTMLResponse)
+async def public_docs() -> HTMLResponse:
+    return HTMLResponse(
+        public_docs_html,
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "Content-Security-Policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+            ),
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def protected_openapi(_: None = Depends(require_api_key)) -> JSONResponse:
+    return JSONResponse(app.openapi(), headers={"Cache-Control": "no-store"})
 
 
 @app.exception_handler(GatewayError)

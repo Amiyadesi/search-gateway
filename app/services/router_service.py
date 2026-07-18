@@ -16,6 +16,7 @@ from app.providers.hackernews import HackerNewsProvider
 from app.providers.internet_archive import InternetArchiveProvider
 from app.providers.openalex import OpenAlexProvider
 from app.providers.pubmed import PubMedProvider
+from app.providers.serpjet import SerpJetProvider
 from app.providers.searxng import SearxngProvider
 from app.providers.semantic_scholar import SemanticScholarProvider
 from app.providers.stackexchange import StackExchangeProvider
@@ -68,6 +69,7 @@ class RouterService:
             "internet_archive": InternetArchiveProvider(settings),
             "common_crawl": CommonCrawlProvider(settings),
             "grok": GrokProvider(settings),
+            "serpjet": SerpJetProvider(settings),
         }
 
     def select_provider(self, query: str, provider: str = "auto") -> str:
@@ -186,6 +188,7 @@ class RouterService:
             "grok": bool(
                 self.settings.grok_search_enabled and GrokProvider.configured_backend_ready(self.settings)
             ),
+            "serpjet": bool(SerpJetProvider.configured_api_keys(self.settings)),
         }.get(provider, False)
 
     @staticmethod
@@ -193,7 +196,7 @@ class RouterService:
         if not allow_fallback:
             return [chosen]
         order = [chosen]
-        fallback_names = ["brave", "tavily", "tavily_hikari", "exa", "searxng"]
+        fallback_names = ["brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"]
         if grok_enabled:
             fallback_names.insert(0, "grok")
         for name in fallback_names:

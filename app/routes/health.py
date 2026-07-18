@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Response, status
 
 from app.config import Settings, get_settings
 from app.providers.grok import GrokProvider
+from app.providers.serpjet import SerpJetProvider
 from app.providers.tavily import TavilyProvider
 from app.schemas.health import HealthResponse, ProviderHealth, ReadinessResponse
 from app.services.readiness_service import ReadinessService
@@ -20,6 +21,7 @@ async def healthz() -> dict[str, bool]:
 @router.get("/readyz", response_model=ReadinessResponse)
 async def readyz(
     response: Response,
+    _: None = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ) -> ReadinessResponse:
     result = await ReadinessService(settings).check()
@@ -61,6 +63,10 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
         "semantic_scholar": ProviderHealth(configured=bool(settings.semantic_scholar_base_url)),
         "internet_archive": ProviderHealth(configured=bool(settings.internet_archive_base_url)),
         "common_crawl": ProviderHealth(configured=bool(settings.common_crawl_index_url)),
+        "serpjet": ProviderHealth(
+            configured=bool(SerpJetProvider.configured_api_keys(settings)),
+            upstreams=SerpJetProvider.configured_upstream_count(settings),
+        ),
         "rerank": ProviderHealth(
             configured=bool(
                 settings.rerank_enabled and settings.rerank_base_url and settings.rerank_api_key and settings.rerank_model

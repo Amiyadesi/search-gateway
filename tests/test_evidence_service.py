@@ -185,6 +185,33 @@ def test_one_provider_failure_returns_partial_evidence_and_opens_circuit():
     assert router.cache.values["evidence:circuit:tavily"]["code"] == "PROVIDER_RATE_LIMITED"
 
 
+def test_serpjet_credit_exhaustion_is_reported_as_rate_limited():
+    router = FakeRouter(
+        {
+            ("test query", "serpjet"): GatewayError(
+                "credits exhausted",
+                status_code=502,
+                detail={"status": 402},
+            ),
+        },
+        candidates=["serpjet"],
+    )
+    service = EvidenceService(Settings(gateway_api_key="test"), router=router)
+
+    response = asyncio.run(
+        service.search(
+            request(
+                budget=EvidenceBudget(max_provider_calls=1, max_extract_pages=0, timeout_ms=5000)
+            )
+        )
+    )
+
+    assert response.success is False
+    assert response.errors[0].code == "PROVIDER_RATE_LIMITED"
+    assert response.errors[0].provider == "serpjet"
+    assert response.errors[0].retryable is True
+
+
 def test_all_provider_failures_return_structured_unsuccessful_response():
     router = FakeRouter(
         {

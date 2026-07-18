@@ -32,7 +32,7 @@ def test_readyz_reports_ready_when_required_dependencies_are_available(monkeypat
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="test")
 
     try:
-        response = TestClient(app).get("/readyz")
+        response = TestClient(app).get("/readyz", headers={"X-API-Key": "test"})
     finally:
         app.dependency_overrides.clear()
 
@@ -70,7 +70,7 @@ def test_readyz_checks_enabled_internal_http_dependencies(monkeypatch):
     )
 
     try:
-        response = TestClient(app).get("/readyz")
+        response = TestClient(app).get("/readyz", headers={"X-API-Key": "test"})
     finally:
         app.dependency_overrides.clear()
 
@@ -93,7 +93,9 @@ def test_readyz_reports_missing_redis_configuration_without_crashing():
     )
 
     try:
-        response = TestClient(app, raise_server_exceptions=False).get("/readyz")
+        response = TestClient(app, raise_server_exceptions=False).get(
+            "/readyz", headers={"X-API-Key": "gateway-secret"}
+        )
     finally:
         app.dependency_overrides.clear()
 
@@ -119,7 +121,9 @@ def test_readyz_reports_invalid_internal_url_as_misconfigured(monkeypatch):
     )
 
     try:
-        response = TestClient(app).get("/readyz")
+        response = TestClient(app).get(
+            "/readyz", headers={"X-API-Key": "gateway-secret"}
+        )
     finally:
         app.dependency_overrides.clear()
 
@@ -148,7 +152,9 @@ def test_readyz_returns_sanitized_503_when_internal_dependency_is_unavailable(mo
     )
 
     try:
-        response = TestClient(app).get("/readyz")
+        response = TestClient(app).get(
+            "/readyz", headers={"X-API-Key": "gateway-secret"}
+        )
     finally:
         app.dependency_overrides.clear()
 
@@ -223,3 +229,15 @@ def test_health_reports_zhihu_without_exposing_key(monkeypatch):
 
     assert response.providers["zhihu"].configured is True
     assert "zhihu-secret" not in response.model_dump_json()
+
+
+def test_health_reports_serpjet_key_count_without_exposing_keys(monkeypatch):
+    monkeypatch.setattr("app.routes.health.CacheService", FakeCache)
+    response = asyncio.run(
+        health(settings=Settings(gateway_api_key="test", serpjet_api_keys="first-secret,second-secret"))
+    )
+
+    assert response.providers["serpjet"].configured is True
+    assert response.providers["serpjet"].upstreams == 2
+    assert "first-secret" not in response.model_dump_json()
+    assert "second-secret" not in response.model_dump_json()

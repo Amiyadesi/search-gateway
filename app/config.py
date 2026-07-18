@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     tavily_hikari_token: str = Field(default="", alias="TAVILY_HIKARI_TOKEN")
     tavily_hikari_url: str = Field(default="", alias="TAVILY_HIKARI_URL")
     exa_api_key: str = Field(default="", alias="EXA_API_KEY")
+    serpjet_api_keys: str = Field(default="", alias="SERPJET_API_KEYS")
+    serpjet_timeout_seconds: float = Field(default=12.0, gt=0, le=120, alias="SERPJET_TIMEOUT_SECONDS")
     zhihu_api_key: str = Field(default="", alias="ZHIHU_API_KEY")
     zhihu_timeout_seconds: float = Field(default=15.0, gt=0, le=120, alias="ZHIHU_TIMEOUT_SECONDS")
     firecrawl_api_key: str = Field(default="", alias="FIRECRAWL_API_KEY")
@@ -140,7 +142,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=21600, alias="CACHE_TTL_SECONDS")
 
     evidence_provider_order: str = Field(
-        default="brave,tavily,zhihu,exa,searxng,tavily_hikari,grok",
+        default="brave,tavily,zhihu,exa,searxng,tavily_hikari,grok,serpjet",
         alias="EVIDENCE_PROVIDER_ORDER",
     )
     evidence_cache_ttl_seconds: int = Field(default=3600, alias="EVIDENCE_CACHE_TTL_SECONDS")

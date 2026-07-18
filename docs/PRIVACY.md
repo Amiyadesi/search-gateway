@@ -16,6 +16,13 @@ secrets, not BYOK values. They are read from deployment-local settings and are
 never returned through search results, Evidence provenance, health output, or
 MCP responses.
 
+Optional SerpJet credentials in `SERPJET_API_KEYS` follow the same boundary.
+Search Gateway sends them only to the fixed endpoint documented at
+https://serpjet.io/docs.html through `X-API-KEY`. SerpJet states that it logs API
+call time, API key, search keywords, result type, and response status, retaining
+API call logs for 12 months. Operators should evaluate that upstream retention
+before enabling the provider.
+
 The repository contains configuration names and empty examples only. Runtime
 credentials must remain outside Git.
 

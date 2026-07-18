@@ -168,6 +168,7 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
             "internet_archive",
             "common_crawl",
             "zhihu",
+            "serpjet",
         } <= set(
             search_tool["inputSchema"]["properties"]["provider"]["enum"]
         )

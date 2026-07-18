@@ -1,4 +1,4 @@
-# Search Gateway 1.2
+# Search Gateway 1.2.1
 
 An authenticated FastAPI gateway that gives AI tools one local API for web
 search, page extraction, screenshots, research summaries, and optional MCP
@@ -11,6 +11,8 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
 
 - `GET /search` routes a query to a configured web, documentation, code,
   encyclopedia, academic, or open-data provider.
+- SerpJet can act as the final Google web-search fallback. Up to two server-side
+  keys are tried without exposing either key to clients.
 - `POST /v1/evidence-search` runs a bounded multi-query/multi-source evidence
   pipeline with URL cleanup, canonical/content deduplication, RRF ranking,
   domain diversity, optional extraction, provenance, budgets, and structured
@@ -27,9 +29,9 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
   available evidence into a bounded result. They return a deterministic
   degraded response when an optional model is unavailable.
 - `GET /healthz` is an unauthenticated, dependency-free liveness endpoint.
-  `GET /readyz` checks only configured internal Redis, SearXNG, and GrokSearch
-  bridge dependencies; `GET /health` shows non-secret provider configuration
-  state.
+  Authenticated `GET /readyz` checks only configured internal Redis, SearXNG,
+  and GrokSearch bridge dependencies; authenticated `GET /health` shows
+  non-secret provider configuration state.
 - `mcp/search_gateway_mcp.py` is an optional stdio MCP adapter. It can call a
   gateway over SSH without keeping the gateway API key on the local machine.
 
@@ -51,7 +53,7 @@ cp .env.example .env
 # Set GATEWAY_API_KEY and the provider settings you intend to use.
 docker compose up -d --build
 curl http://127.0.0.1:8000/healthz
-curl http://127.0.0.1:8000/readyz
+curl -H "X-API-Key: $GATEWAY_API_KEY" http://127.0.0.1:8000/readyz
 ```
 
 The default Compose mapping binds the API to `127.0.0.1:8000`. Put a reverse
@@ -79,7 +81,8 @@ reranking, embedding, and summary endpoints.
 
 Useful defaults:
 
-- `GATEWAY_API_KEY` protects every endpoint except `/healthz` and `/readyz`.
+- `GATEWAY_API_KEY` protects every endpoint except `/healthz` and the public
+  project-introduction page at `/docs`.
 - `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` are optional
   deployment-local networking settings. The repository does not prescribe a
   proxy or network name.
@@ -97,6 +100,12 @@ Useful defaults:
   The upstream URL is fixed in source; `ZHIHU_TIMEOUT_SECONDS` only controls
   its request timeout. When it is configured, Chinese `auto` queries can select
   it and Evidence v1 can include it as one of the bounded search sources.
+- `SERPJET_API_KEYS` accepts one or two comma-separated server-side keys for the
+  optional [SerpJet API](https://serpjet.io/docs.html). SerpJet is last in the
+  default ordinary-search and Evidence provider order. The second key is used
+  only after auth, credit, rate-limit, timeout, network, or `5xx` failure. Set
+  `SERPJET_TIMEOUT_SECONDS` to change its request timeout. Search Gateway sends
+  each key only in SerpJet's required `X-API-KEY` header.
 - `ANSWER_API_BASE_URL`, `ANSWER_API_MODEL`, and optional `ANSWER_API_KEY`
   configure the fixed OpenAI-compatible fallback. A request can instead submit
   `api_base_url` and `api_model` together with `X-Answer-API-Key`; that custom
@@ -107,12 +116,32 @@ Useful defaults:
 
 Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
 
+### Supported free, BYOK, and self-hosted services
+
+- No-key or open-data sources include DuckDuckGo Instant Answers, Wikipedia,
+  Wikidata, Hacker News, arXiv, OpenAlex, Crossref, PubMed, Semantic Scholar,
+  Internet Archive, and Common Crawl. GitHub and Stack Exchange also work with
+  lower unauthenticated limits.
+- Free-plan or BYOK search sources include Brave Search API, Tavily, Exa,
+  SerpJet, Zhihu Global Search, Context7, and optional Grok-compatible entries.
+- Self-hosted paths include SearXNG, the bundled GrokSearch bridge, Firecrawl,
+  and server-configured OpenAI-compatible answer, summary, rerank, or embedding
+  endpoints. Ollama and a privately operated GPT4Free service can fit the
+  OpenAI-compatible path when deployed behind an authorized HTTPS endpoint.
+- Screenshot fallbacks support APIFlash, PhantomJSCloud, ScreenshotMachine,
+  ScreenshotScout, SnapAPI, ScreenshotBase, Thumbnail.ws, HQAPI,
+  Screenshotlayer, and Microlink.
+
+See [Provider setup and free/self-hosted options](./docs/PROVIDERS.md) for
+official signup links, environment variables, limits, privacy notes, and tested
+request examples. Free quotas change; provider pages remain authoritative.
+
 ## API surface
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/healthz` | Liveness probe without credentials |
-| `GET` | `/readyz` | Readiness probe for configured internal dependencies |
+| `GET` | `/readyz` | Authenticated readiness probe for configured internal dependencies |
 | `GET` | `/health` | Authenticated provider and cache status |
 | `GET` | `/search` | Search with an optional `provider` selector |
 | `POST` | `/v1/evidence-search` | Bounded, fused, provenance-rich search evidence |
@@ -126,9 +155,19 @@ Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
 | `POST` | `/analyze-url` | Analyze one public URL |
 | `GET` | `/ipinfo` | Optional IP intelligence lookup |
 
-See the FastAPI OpenAPI page from a running local service for request and
-response schemas. The complete versioned contract and error model are in
+The public `/docs` route is intentionally an introduction page, not an API
+console. Authenticated operators can fetch `/openapi.json` from their own
+deployment. The complete versioned contract and error model are in
 [docs/API.md](./docs/API.md).
+
+## Agent skill
+
+[`skills/use-search-gateway/SKILL.md`](./skills/use-search-gateway/SKILL.md) is a
+copyable Codex skill for connecting an agent to an owned or explicitly
+authorized deployment.
+It tells the agent to discover credentials locally, preserve provenance, and
+avoid treating search evidence as consumer AI visibility. Copy that folder into
+your local skills directory; do not point it at the public Sayori deployment.
 
 ### Evidence search example
 

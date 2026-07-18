@@ -579,7 +579,7 @@ class EvidenceService:
         elif effective_status in {401, 403}:
             status, code, retryable = "auth_error", "PROVIDER_AUTH_ERROR", False
             cooldown = self.settings.evidence_auth_cooldown_seconds
-        elif effective_status == 429:
+        elif effective_status in {402, 429}:
             status, code, retryable = "rate_limited", "PROVIDER_RATE_LIMITED", True
             retry_after = exc.detail.get("retry_after_seconds") if isinstance(exc, GatewayError) else None
             cooldown = (
