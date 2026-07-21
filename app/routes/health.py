@@ -83,6 +83,9 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
             upstreams=GrokProvider.configured_backend_count(settings),
         ),
         "ipinfo": ProviderHealth(configured=bool(settings.ipinfo_enabled and settings.ipinfo_api_key)),
+        "ipsb": ProviderHealth(
+            configured=bool(settings.ipsb_enabled and settings.ipsb_base_url),
+        ),
         "firecrawl": ProviderHealth(configured=bool(settings.firecrawl_api_key)),
         "screenshot": ProviderHealth(configured=bool(screenshot_configured), upstreams=len(screenshot_configured)),
         "summary": ProviderHealth(

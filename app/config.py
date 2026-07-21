@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     ipinfo_api_key: str = Field(default="", alias="IPINFO_API_KEY")
     ipinfo_base_url: str = Field(default="", alias="IPINFO_BASE_URL")
     ipinfo_timeout_seconds: float = Field(default=12.0, alias="IPINFO_TIMEOUT_SECONDS")
+    ipsb_enabled: bool = Field(default=True, alias="IPSB_ENABLED")
+    ipsb_base_url: str = Field(default="https://api.ip.sb/geoip", alias="IPSB_BASE_URL")
+    ipsb_timeout_seconds: float = Field(default=12.0, gt=0, le=120, alias="IPSB_TIMEOUT_SECONDS")
     grok_search_enabled: bool = Field(default=False, alias="GROK_SEARCH_ENABLED")
     grok_search_auto_enabled: bool = Field(default=False, alias="GROK_SEARCH_AUTO_ENABLED")
     grok_backend: Literal["openai", "groksearch", "hybrid"] = Field(default="openai", alias="GROK_BACKEND")
@@ -253,9 +256,9 @@ class Settings(BaseSettings):
     def strip_grok_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
-    @field_validator("ipinfo_base_url")
+    @field_validator("ipinfo_base_url", "ipsb_base_url")
     @classmethod
-    def strip_ipinfo_trailing_slash(cls, value: str) -> str:
+    def strip_ip_provider_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
 

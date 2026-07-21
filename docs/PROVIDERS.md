@@ -17,6 +17,7 @@ still apply:
 | arXiv / OpenAlex / Crossref / PubMed / Semantic Scholar | corresponding `*_BASE_URL` | Academic metadata and discovery |
 | Internet Archive / Common Crawl | corresponding settings | Historical and crawl evidence |
 | GitHub / Stack Exchange | corresponding base URL and optional credentials | Lower anonymous quotas may apply |
+| [IP.SB](https://ip.sb/api/) | `IPSB_ENABLED`, `IPSB_BASE_URL`, `IPSB_TIMEOUT_SECONDS` | Free IP geolocation fallback; no risk verdicts |
 
 ## Free-plan or BYOK services
 
@@ -74,3 +75,21 @@ explicitly requires otherwise.
 The hosted Sayori instance is private infrastructure. This document helps you
 operate your own deployment and does not provide credentials or permission to
 call that instance.
+
+## IP intelligence fallback
+
+`GET /ipinfo?ip=...` keeps a configured IPInfo-compatible source as its first
+choice. When that source is absent or has a retryable upstream failure, the
+gateway can use IP.SB's public `GET /geoip/{ip}` endpoint. IP.SB needs no API
+key; its current documentation advertises 200 requests per 10 minutes per
+source IP, subject to change. The gateway caches successful results and sends a
+descriptive `User-Agent`.
+
+IP.SB supplies location, ASN, organization and ISP fields. It does not supply
+the VPN, proxy, Tor or threat signals used by the primary source, so those
+fields remain `null`, with `riskLevel: "unknown"` and `riskScore: null`.
+Unknown is intentional and must not be presented as a clean-risk verdict.
+Invalid target IPs are rejected locally before any upstream request. The
+target IP is still sent to whichever upstream handles a valid lookup, so do
+not enable this path for data that your privacy policy does not permit to
+leave the deployment.
