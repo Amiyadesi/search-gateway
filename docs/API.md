@@ -254,6 +254,48 @@ Custom answer API failures use the normal gateway envelope with stable codes:
 responses never include the key, custom base URL, redirect location, or raw
 upstream body.
 
+## IP information
+
+### `GET /ipinfo?ip={IPv4-or-IPv6}`
+
+The route validates and normalizes the target IP locally, then checks the
+normal response cache. A configured IPInfo-compatible service is preferred.
+IP.SB is the credential-free fallback when the primary source is not configured
+or returns a retryable upstream failure. The response names the source that
+actually answered:
+
+```json
+{
+  "success": true,
+  "provider": "ipsb",
+  "ip": "1.1.1.1",
+  "cached": false,
+  "data": {
+    "ip": "1.1.1.1",
+    "normalized": {
+      "countryCode": "US",
+      "countryName": "United States",
+      "asn": "AS13335",
+      "organization": "Cloudflare, Inc.",
+      "isp": "Cloudflare",
+      "isVpn": null,
+      "isProxy": null,
+      "isTor": null,
+      "isThreat": null,
+      "riskScore": null,
+      "riskLevel": "unknown",
+      "riskLabels": []
+    }
+  }
+}
+```
+
+The exact location fields depend on upstream coverage. IP.SB does not provide
+VPN, proxy, Tor or threat detection, so its normalized response leaves those
+signals unknown instead of reporting a false clean result. Invalid IPs return
+HTTP 422 without an upstream request. Valid lookups send the target IP to the
+selected third party; successful results use the deployment's normal cache TTL.
+
 ## MCP
 
 The stdio adapter exposes all legacy tools plus:

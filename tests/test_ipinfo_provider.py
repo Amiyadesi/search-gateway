@@ -1,6 +1,10 @@
 import asyncio
 
+import httpx
+import pytest
+
 from app.config import Settings
+from app.providers.ipsb import IpSbProvider
 from app.providers.ipinfo import IpInfoProvider
 from app.utils.errors import GatewayError
 
@@ -93,3 +97,100 @@ def test_ipinfo_provider_normalizes_common_flat_response():
     assert normalized["isProxy"] is True
     assert normalized["riskScore"] >= 35
     assert "Proxy" in normalized["riskLabels"]
+
+
+def test_ipsb_provider_maps_geoip_without_claiming_risk_signals(monkeypatch):
+    provider = IpSbProvider(
+        Settings(
+            gateway_api_key="test",
+            ipsb_enabled=True,
+            ipsb_base_url="https://api.ip.sb/geoip/",
+        )
+    )
+    calls = {"url": "", "headers": {}}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "ip": "1.1.1.1",
+                "country_code": "US",
+                "country": "United States",
+                "region": "California",
+                "city": "Los Angeles",
+                "asn": 13335,
+                "asn_organization": "Cloudflare, Inc.",
+                "isp": "Cloudflare",
+                "organization": "Cloudflare",
+            }
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, **kwargs):
+            calls["url"] = url
+            calls["headers"] = kwargs.get("headers") or {}
+            return FakeResponse()
+
+    monkeypatch.setattr("app.providers.ipsb.build_client", lambda *_args, **_kwargs: FakeClient())
+    result = asyncio.run(provider.lookup("1.1.1.1"))
+
+    assert calls["url"] == "https://api.ip.sb/geoip/1.1.1.1"
+    assert calls["headers"]["User-Agent"].startswith("AI-Search-Gateway/")
+    assert result["ip"] == "1.1.1.1"
+    assert result["normalized"]["countryCode"] == "US"
+    assert result["normalized"]["asn"] == "AS13335"
+    assert result["normalized"]["organization"] == "Cloudflare, Inc."
+    assert result["normalized"]["isVpn"] is None
+    assert result["normalized"]["isProxy"] is None
+    assert result["normalized"]["isTor"] is None
+    assert result["normalized"]["isThreat"] is None
+    assert result["normalized"]["riskScore"] is None
+    assert result["normalized"]["riskLevel"] == "unknown"
+
+
+@pytest.mark.parametrize("failure", ["status", "timeout", "json", "mismatch"])
+def test_ipsb_provider_fails_loudly_for_unusable_responses(monkeypatch, failure):
+    provider = IpSbProvider(Settings(gateway_api_key="test", ipsb_enabled=True))
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            if failure == "status":
+                request = httpx.Request("GET", "https://api.ip.sb/geoip/1.1.1.1")
+                response = httpx.Response(429, request=request)
+                raise httpx.HTTPStatusError("limited", request=request, response=response)
+
+        def json(self):
+            if failure == "json":
+                return ["not", "an", "object"]
+            if failure == "mismatch":
+                return {"ip": "8.8.8.8"}
+            return {"ip": "1.1.1.1"}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url, **_kwargs):
+            if failure == "timeout":
+                raise httpx.ReadTimeout("timed out")
+            return FakeResponse()
+
+    monkeypatch.setattr("app.providers.ipsb.build_client", lambda *_args, **_kwargs: FakeClient())
+
+    with pytest.raises(GatewayError) as caught:
+        asyncio.run(provider.lookup("1.1.1.1"))
+
+    if failure == "timeout":
+        assert caught.value.status_code == 504
+    else:
+        assert caught.value.status_code == 502

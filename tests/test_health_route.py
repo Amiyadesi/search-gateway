@@ -241,3 +241,13 @@ def test_health_reports_serpjet_key_count_without_exposing_keys(monkeypatch):
     assert response.providers["serpjet"].upstreams == 2
     assert "first-secret" not in response.model_dump_json()
     assert "second-secret" not in response.model_dump_json()
+
+
+def test_health_reports_ipsb_fallback_without_credentials(monkeypatch):
+    monkeypatch.setattr("app.routes.health.CacheService", FakeCache)
+    response = asyncio.run(
+        health(settings=Settings(gateway_api_key="test", ipsb_enabled=True))
+    )
+
+    assert response.providers["ipsb"].configured is True
+    assert "api.ip.sb" not in response.model_dump_json()

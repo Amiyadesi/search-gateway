@@ -153,7 +153,7 @@ request examples. Free quotas change; provider pages remain authoritative.
 | `POST` | `/summary` | Search and produce a bounded summary |
 | `POST` | `/research` | Search, extract, and synthesize evidence |
 | `POST` | `/analyze-url` | Analyze one public URL |
-| `GET` | `/ipinfo` | Optional IP intelligence lookup |
+| `GET` | `/ipinfo` | IP geolocation/intelligence lookup with optional IP.SB fallback |
 
 The public `/docs` route is intentionally an introduction page, not an API
 console. Authenticated operators can fetch `/openapi.json` from their own
