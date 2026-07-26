@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from app.schemas.screenshot import SCREENSHOT_MODES, ScreenshotMetadata
@@ -18,6 +20,8 @@ class ExtractRequest(BaseModel):
 class ExtractResponse(BaseModel):
     success: bool
     markdown: str
+    quality: Literal["usable", "thin", "non_text"] = "non_text"
+    readable_chars: int = 0
     screenshot: ScreenshotMetadata | None = None
     degraded: bool = False
     error: str | None = None

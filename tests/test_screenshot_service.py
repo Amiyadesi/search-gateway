@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pytest
 
@@ -140,3 +141,55 @@ def test_screenshot_returns_degraded_when_all_providers_fail(monkeypatch):
 
     assert result.degraded is True
     assert result.error == "boom"
+
+
+def test_screenshot_auto_mode_limits_provider_attempts(monkeypatch):
+    service = ScreenshotService(
+        Settings(
+            gateway_api_key="test",
+            screenshot_provider_order="snapapi,apiflash,microlink,screenshotmachine",
+            screenshot_max_auto_attempts=2,
+            screenshot_allow_private_urls=True,
+        )
+    )
+    service.cache = FakeCache()
+    calls = []
+
+    async def fake_capture(provider, request):
+        calls.append(provider)
+        raise GatewayError("boom", status_code=502)
+
+    monkeypatch.setattr(service, "_capture_with_provider", fake_capture)
+
+    result = run(service.capture(ScreenshotRequest(url="https://example.com")))
+
+    assert calls == ["snapapi", "apiflash"]
+    assert result.degraded is True
+
+
+def test_screenshot_chain_enforces_total_timeout(monkeypatch):
+    service = ScreenshotService(
+        Settings(
+            gateway_api_key="test",
+            screenshot_provider_order="snapapi,apiflash",
+            screenshot_total_timeout_seconds=0.03,
+            screenshot_allow_private_urls=True,
+        )
+    )
+    service.cache = FakeCache()
+
+    async def slow_capture(provider, request):
+        from app.services.screenshot_service import ScreenshotCapture
+
+        await asyncio.sleep(0.2)
+        return ScreenshotCapture(provider=provider, content=b"image", content_type="image/png")
+
+    monkeypatch.setattr(service, "_capture_with_provider", slow_capture)
+
+    started = time.perf_counter()
+    result = run(service.capture(ScreenshotRequest(url="https://example.com")))
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.1
+    assert result.degraded is True
+    assert result.error == "截图总预算耗尽"

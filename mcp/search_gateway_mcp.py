@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 
-SERVER_INFO = {"name": "ai-search-gateway", "version": "1.2.1"}
+SERVER_INFO = {"name": "ai-search-gateway", "version": "1.2.2"}
 DEFAULT_MCP_TEXT_MAX_CHARS = 60000
 DEFAULT_USE_PERSISTENT_SSH = True
 DEFAULT_REMOTE_DIR = "/root/search-gateway"
@@ -97,6 +97,20 @@ def build_ssh_command(helper_name: str, *, persistent: bool = False) -> list[str
     return command
 
 
+def gateway_timeout_result(started: float, phase: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "status": 0,
+        "error": {
+            "code": "GATEWAY_TIMEOUT",
+            "phase": phase,
+            "retryable": True,
+            "elapsed_ms": max(0, round((time.monotonic() - started) * 1000)),
+            "message": "搜索网关调用超时",
+        },
+    }
+
+
 class RemoteGatewaySession:
     """复用一条 SSH 连接，避免每次 MCP 工具调用都重新握手。"""
 
@@ -161,12 +175,13 @@ class RemoteGatewaySession:
                 self.stderr_lines = self.stderr_lines[-20:]
 
     def _read_json_response(self, timeout: int) -> dict[str, Any]:
+        started = time.monotonic()
         deadline = time.monotonic() + timeout
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 self.close()
-                return {"ok": False, "status": 0, "error": f"远端搜索网关调用超时（{timeout}s）"}
+                return gateway_timeout_result(started, "ssh")
 
             if self.proc is not None and self.proc.poll() is not None and self.stdout_queue.empty():
                 stderr = "\n".join(self.stderr_lines[-5:])
@@ -228,6 +243,7 @@ def call_gateway(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
 
 def call_gateway_once(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
     """兼容路径：启动一次 SSH，调用一次远端 helper。"""
+    started = time.monotonic()
     try:
         proc = subprocess.run(
             build_ssh_command("remote_gateway_call.py"),
@@ -238,7 +254,7 @@ def call_gateway_once(payload: dict[str, Any], timeout: int = 180) -> dict[str, 
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return {"ok": False, "status": 0, "error": f"SSH 调用搜索网关超时（{timeout}s）"}
+        return gateway_timeout_result(started, "ssh")
     except FileNotFoundError as exc:
         return {"ok": False, "status": 0, "error": f"无法启动 SSH/Python: {exc}"}
     except Exception as exc:

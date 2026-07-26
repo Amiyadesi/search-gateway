@@ -8,6 +8,7 @@ from app.services.screenshot_service import ScreenshotService
 from app.utils.auth import require_api_key
 from app.utils.errors import GatewayError
 from app.utils.logging import logger
+from app.utils.markdown_quality import assess_markdown_quality
 
 router = APIRouter(tags=["extract"])
 
@@ -32,10 +33,16 @@ async def extract(
         error = exc.message
         logger.warning("Firecrawl 提取失败，尝试截图兜底: {}", exc.message)
 
+    quality = assess_markdown_quality(markdown, settings.screenshot_min_markdown_chars)
+    if quality.status != "usable":
+        degraded = True
+        if error is None:
+            error = "页面缺少可读正文" if quality.status == "non_text" else "页面正文质量不足"
+
     screenshot = None
     should_capture = payload.screenshot_mode == "force" or (
         payload.screenshot_mode == "auto"
-        and (degraded or len(" ".join(markdown.split())) < settings.screenshot_min_markdown_chars)
+        and quality.status != "usable"
     )
     if should_capture:
         service = ScreenshotService(settings)
@@ -50,8 +57,10 @@ async def extract(
             await service.close()
 
     return ExtractResponse(
-        success=bool(markdown or screenshot),
+        success=quality.status != "non_text",
         markdown=markdown,
+        quality=quality.status,
+        readable_chars=quality.readable_chars,
         screenshot=screenshot,
         degraded=degraded or bool(screenshot and screenshot.degraded),
         error=error,

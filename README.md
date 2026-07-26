@@ -1,4 +1,4 @@
-# Search Gateway 1.2.1
+# Search Gateway 1.2.2
 
 An authenticated FastAPI gateway that gives AI tools one local API for web
 search, page extraction, screenshots, research summaries, and optional MCP
@@ -22,7 +22,9 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
   keys and base URLs are never cached, persisted, logged, or returned.
 - `POST /v1/answer-models` lists bounded, sanitized model IDs from a
   request-scoped OpenAI-compatible API.
-- `POST /extract` fetches readable Markdown from a public page.
+- `POST /extract` fetches Markdown from a public page and labels it `usable`,
+  `thin`, or `non_text` so image proxies and navigation piles are not reported
+  as complete readable content.
 - `POST /screenshot` captures a public page and stores a short-lived,
   authenticated cache entry.
 - `POST /summary`, `POST /research`, and `POST /analyze-url` compose the
@@ -113,6 +115,12 @@ Useful defaults:
   `https://api.example.com` becomes `https://api.example.com/v1`; pasted
   `/models` or `/chat/completions` suffixes are removed, while custom roots such
   as `/api/v1` remain unchanged.
+- `REQUEST_TIMEOUT_SECONDS` bounds each page extraction, while
+  `RESEARCH_TIMEOUT_SECONDS` is the complete search/extract/model budget.
+  `SUMMARY_TIMEOUT_SECONDS` bounds a complete model attempt.
+- `SCREENSHOT_MAX_AUTO_ATTEMPTS` and `SCREENSHOT_TOTAL_TIMEOUT_SECONDS` bound
+  automatic provider fallback. Raising them is not a substitute for diagnosing
+  a slow extraction or screenshot provider.
 
 Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
 
@@ -247,6 +255,10 @@ the MCP schema does not accept or transport a user key. `ai_search` and
 `ai_evidence_search` accept `zhihu` as an explicit provider only when the
 server-side Access Secret is configured; the adapter never receives that
 secret.
+
+Transport, gateway, and outer SSH timeouts return a stable `GATEWAY_TIMEOUT`
+object with `phase`, `retryable`, `elapsed_ms`, and a sanitized message. An HTTP
+`504` response from the gateway keeps its original structured response body.
 
 ## Development
 

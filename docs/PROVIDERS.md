@@ -39,7 +39,10 @@ header. Do not commit either key.
 ## Self-hosted and OpenAI-compatible services
 
 - SearXNG can provide general metasearch through `SEARXNG_*` settings
-- Firecrawl can provide extraction through `FIRECRAWL_*` settings
+- Firecrawl can provide extraction through `FIRECRAWL_*` settings. Returned
+  Markdown is quality-checked independently of the source domain; image proxy
+  lists and navigation-heavy output are degraded instead of being treated as
+  readable article content
 - The bundled GrokSearch bridge can expose a controlled internal search source
 - OpenAI-compatible answer, summary, rerank, and embedding endpoints use their
   corresponding `*_BASE_URL`, `*_MODEL`, and server-side key settings
@@ -61,6 +64,11 @@ ScreenshotMachine, ScreenshotScout, SnapAPI, ScreenshotBase, Thumbnail.ws,
 HQAPI, Screenshotlayer, and Microlink. Configure only providers you need and
 keep `SCREENSHOT_ALLOW_PRIVATE_URLS=false` unless an isolated internal use case
 explicitly requires otherwise.
+
+Automatic mode tries at most `SCREENSHOT_MAX_AUTO_ATTEMPTS` providers and stops
+at `SCREENSHOT_TOTAL_TIMEOUT_SECONDS`. `SCREENSHOT_TIMEOUT_SECONDS` remains the
+per-provider HTTP setting. Research uses `REQUEST_TIMEOUT_SECONDS` per page and
+the independent `RESEARCH_TIMEOUT_SECONDS` end-to-end budget.
 
 ## Safe configuration workflow
 

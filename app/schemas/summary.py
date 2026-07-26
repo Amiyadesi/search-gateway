@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from app.schemas.common import SearchResult
@@ -87,8 +89,18 @@ class ResearchContext(BaseModel):
     url: str
     markdown: str
     extracted: bool
+    status: Literal["complete", "snippet", "timeout", "error"] = "complete"
+    quality: Literal["usable", "thin", "non_text"] = "usable"
+    elapsed_ms: int = 0
     screenshot: ScreenshotMetadata | None = None
     error: str | None = None
+
+
+class ResearchTimings(BaseModel):
+    search_ms: int = 0
+    extract_ms: int = 0
+    summary_ms: int = 0
+    total_ms: int = 0
 
 
 class ResearchResponse(BaseModel):
@@ -99,5 +111,7 @@ class ResearchResponse(BaseModel):
     sources: list[SearchResult]
     contexts: list[ResearchContext] = []
     screenshots: list[ScreenshotMetadata] = []
+    timings: ResearchTimings = Field(default_factory=ResearchTimings)
+    partial: bool = False
     degraded: bool = False
     error: str | None = None

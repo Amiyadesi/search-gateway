@@ -1,7 +1,9 @@
+import asyncio
 import base64
 import hashlib
 import ipaddress
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -53,9 +55,18 @@ class ScreenshotService:
             )
 
         last_error = ""
-        for provider in self._provider_order(request.provider):
+        providers = self._provider_order(request.provider)
+        if request.provider == "auto":
+            providers = providers[: self.settings.screenshot_max_auto_attempts]
+        deadline = time.monotonic() + self.settings.screenshot_total_timeout_seconds
+        for provider in providers:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                last_error = "截图总预算耗尽"
+                break
             try:
-                capture = await self._capture_with_provider(provider, request)
+                async with asyncio.timeout(remaining):
+                    capture = await self._capture_with_provider(provider, request)
                 if len(capture.content) > self.settings.screenshot_cache_max_bytes:
                     return ScreenshotMetadata(
                         provider=capture.provider,
@@ -73,6 +84,10 @@ class ScreenshotService:
                     width=request.width,
                     height=request.height,
                 )
+            except TimeoutError:
+                last_error = "截图总预算耗尽"
+                logger.warning("截图总预算耗尽，停止尝试 provider")
+                break
             except Exception as exc:
                 last_error = self._safe_error(exc)
                 logger.warning("截图 provider {} 失败，尝试下一个: {}", provider, last_error)

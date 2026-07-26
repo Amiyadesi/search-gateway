@@ -32,7 +32,7 @@ def test_openapi_schema_requires_gateway_authentication():
 
     assert denied.status_code == 401
     assert allowed.status_code == 200
-    assert allowed.json()["info"]["version"] == "1.2.1"
+    assert allowed.json()["info"]["version"] == "1.2.2"
 
 
 def test_readiness_requires_gateway_authentication():

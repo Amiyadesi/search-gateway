@@ -12,5 +12,7 @@ def configure_logging() -> None:
         sys.stdout,
         level=settings.log_level,
         colorize=True,
+        backtrace=False,
+        diagnose=False,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{message}</cyan>",
     )

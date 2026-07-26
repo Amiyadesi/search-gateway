@@ -1,8 +1,11 @@
 import importlib.util
+import io
 import json
+import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib import error
 
 import pytest
 
@@ -370,3 +373,77 @@ def test_remote_worker_config_errors_are_json_results():
     missing_path = worker.call_gateway({"GATEWAY_API_KEY": "test"}, {})
     assert missing_path["ok"] is False
     assert "path" in missing_path["error"]
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [TimeoutError("timed out"), socket.timeout("timed out"), error.URLError(TimeoutError("timed out"))],
+)
+def test_remote_worker_returns_structured_gateway_timeout(monkeypatch, raised):
+    worker = load_worker()
+
+    def fail_urlopen(*args, **kwargs):
+        raise raised
+
+    monkeypatch.setattr(worker.request, "urlopen", fail_urlopen)
+
+    result = worker.call_gateway(
+        {"GATEWAY_API_KEY": "test", "MCP_GATEWAY_URL": "http://127.0.0.1:8000"},
+        {"path": "/research", "timeout": 1},
+    )
+
+    assert result["ok"] is False
+    assert result["status"] == 0
+    assert result["error"]["code"] == "GATEWAY_TIMEOUT"
+    assert result["error"]["phase"] == "gateway"
+    assert result["error"]["retryable"] is True
+    assert result["error"]["message"] == "搜索网关调用超时"
+    assert isinstance(result["error"]["elapsed_ms"], int)
+
+
+def test_remote_worker_preserves_structured_http_504(monkeypatch):
+    worker = load_worker()
+    detail = {
+        "success": False,
+        "error": "研究检索超时",
+        "code": "RESEARCH_TIMEOUT",
+        "retryable": True,
+        "detail": {"phase": "search"},
+    }
+
+    def fail_urlopen(*args, **kwargs):
+        raise error.HTTPError(
+            "http://127.0.0.1:8000/research",
+            504,
+            "Gateway Timeout",
+            {},
+            io.BytesIO(json.dumps(detail).encode("utf-8")),
+        )
+
+    monkeypatch.setattr(worker.request, "urlopen", fail_urlopen)
+
+    result = worker.call_gateway(
+        {"GATEWAY_API_KEY": "test", "MCP_GATEWAY_URL": "http://127.0.0.1:8000"},
+        {"path": "/research", "timeout": 1},
+    )
+
+    assert result == {"ok": False, "status": 504, "error": detail}
+
+
+def test_single_ssh_timeout_is_structured(monkeypatch):
+    adapter = load_adapter()
+    monkeypatch.setenv("MCP_SEARCH_GATEWAY_SSH_HOST", "gateway-host")
+
+    def fail_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd="ssh", timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(adapter.subprocess, "run", fail_run)
+
+    result = adapter.call_gateway_once({"path": "/research"}, timeout=1)
+
+    assert result["ok"] is False
+    assert result["status"] == 0
+    assert result["error"]["code"] == "GATEWAY_TIMEOUT"
+    assert result["error"]["phase"] == "ssh"
+    assert result["error"]["retryable"] is True
+    assert result["error"]["elapsed_ms"] >= 0

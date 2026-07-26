@@ -26,7 +26,7 @@ public_docs_html = (Path(__file__).parent / "static" / "public_docs.html").read_
 )
 app = FastAPI(
     title=settings.app_name,
-    version="1.2.1",
+    version="1.2.2",
     description=(
         "Authenticated, provider-neutral search and evidence gateway. "
         "Answer snapshots are dated API observations and do not represent consumer interfaces."
@@ -101,7 +101,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 @app.exception_handler(Exception)
 async def unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
-    logger.exception("未处理异常: {}", exc)
+    logger.exception("未处理异常: {}", type(exc).__name__)
     return JSONResponse(
         status_code=500,
         content={"success": False, "error": "服务内部错误", "detail": None},

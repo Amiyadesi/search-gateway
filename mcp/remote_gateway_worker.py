@@ -5,9 +5,31 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
+import time
 from pathlib import Path
 from urllib import error, request
+
+
+def timeout_result(started: float, phase: str = "gateway") -> dict:
+    return {
+        "ok": False,
+        "status": 0,
+        "error": {
+            "code": "GATEWAY_TIMEOUT",
+            "phase": phase,
+            "retryable": True,
+            "elapsed_ms": max(0, round((time.monotonic() - started) * 1000)),
+            "message": "搜索网关调用超时",
+        },
+    }
+
+
+def is_timeout_error(exc: BaseException) -> bool:
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return True
+    return isinstance(exc, error.URLError) and isinstance(exc.reason, (TimeoutError, socket.timeout))
 
 
 def read_env() -> dict[str, str]:
@@ -48,6 +70,7 @@ def call_gateway(env: dict[str, str], payload: dict) -> dict:
         headers=headers,
         method=method,
     )
+    started = time.monotonic()
     try:
         with request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read().decode("utf-8"))
@@ -59,6 +82,21 @@ def call_gateway(env: dict[str, str], payload: dict) -> dict:
         except Exception:
             detail = raw
         return {"ok": False, "status": exc.code, "error": detail}
+    except (TimeoutError, socket.timeout) as exc:
+        return timeout_result(started)
+    except error.URLError as exc:
+        if is_timeout_error(exc):
+            return timeout_result(started)
+        return {
+            "ok": False,
+            "status": 0,
+            "error": {
+                "code": "GATEWAY_NETWORK_ERROR",
+                "phase": "gateway",
+                "retryable": True,
+                "message": "搜索网关网络错误",
+            },
+        }
     except Exception as exc:
         return {"ok": False, "status": 0, "error": repr(exc)}
 

@@ -58,6 +58,13 @@ class Settings(BaseSettings):
         default="snapapi,apiflash,microlink,screenshotlayer,phantomjscloud,screenshotbase,screenshotscout,screenshotmachine,thumbnailws,hqapi",
         alias="SCREENSHOT_PROVIDER_ORDER",
     )
+    screenshot_max_auto_attempts: int = Field(default=3, ge=1, le=10, alias="SCREENSHOT_MAX_AUTO_ATTEMPTS")
+    screenshot_total_timeout_seconds: float = Field(
+        default=60.0,
+        gt=0,
+        le=180,
+        alias="SCREENSHOT_TOTAL_TIMEOUT_SECONDS",
+    )
     screenshot_timeout_seconds: float = Field(default=45.0, alias="SCREENSHOT_TIMEOUT_SECONDS")
     screenshot_cache_ttl_seconds: int = Field(default=21600, alias="SCREENSHOT_CACHE_TTL_SECONDS")
     screenshot_cache_max_bytes: int = Field(default=3145728, alias="SCREENSHOT_CACHE_MAX_BYTES")
@@ -173,6 +180,7 @@ class Settings(BaseSettings):
     summary_model_max_tokens: int = Field(default=900, alias="SUMMARY_MODEL_MAX_TOKENS")
     summary_retry_attempts: int = Field(default=1, alias="SUMMARY_RETRY_ATTEMPTS")
     summary_fallback_enabled: bool = Field(default=True, alias="SUMMARY_FALLBACK_ENABLED")
+    research_timeout_seconds: float = Field(default=120.0, gt=0, le=170, alias="RESEARCH_TIMEOUT_SECONDS")
     summary_user_agent: str = Field(default="Mozilla/5.0", alias="SUMMARY_USER_AGENT")
     summary_accept: str = Field(default="application/json, text/plain, */*", alias="SUMMARY_ACCEPT")
 
