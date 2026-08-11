@@ -24,9 +24,11 @@ class Settings(BaseSettings):
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
     tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
     tavily_api_keys: str = Field(default="", alias="TAVILY_API_KEYS")
+    tavily_api_url: str = Field(default="https://api.tavily.com", alias="TAVILY_API_URL")
     tavily_hikari_token: str = Field(default="", alias="TAVILY_HIKARI_TOKEN")
     tavily_hikari_url: str = Field(default="", alias="TAVILY_HIKARI_URL")
     exa_api_key: str = Field(default="", alias="EXA_API_KEY")
+    exa_api_url: str = Field(default="https://api.exa.ai", alias="EXA_API_URL")
     serpjet_api_keys: str = Field(default="", alias="SERPJET_API_KEYS")
     serpjet_timeout_seconds: float = Field(default=12.0, gt=0, le=120, alias="SERPJET_TIMEOUT_SECONDS")
     zhihu_api_key: str = Field(default="", alias="ZHIHU_API_KEY")
@@ -206,6 +208,11 @@ class Settings(BaseSettings):
     @field_validator("tavily_hikari_url")
     @classmethod
     def strip_tavily_hikari_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
+
+    @field_validator("tavily_api_url", "exa_api_url")
+    @classmethod
+    def strip_search_provider_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
     @field_validator("context7_base_url")

@@ -35,7 +35,7 @@ class TavilyProvider:
     async def _request(self, query: str, max_results: int, api_key: str) -> list[SearchResult]:
         async with build_client(self.settings) as client:
             resp = await client.post(
-                "https://api.tavily.com/search",
+                f"{self.settings.tavily_api_url}/search",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",

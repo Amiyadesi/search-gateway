@@ -24,8 +24,8 @@ still apply:
 | Service | Obtain access | Environment variables | Boundary |
 | --- | --- | --- | --- |
 | [Brave Search API](https://brave.com/search/api/) | Create an account and API subscription | `BRAVE_API_KEY` | Query text is sent to Brave |
-| [Tavily](https://tavily.com/) | Create an API key | `TAVILY_API_KEYS` | Supports multiple server-side keys |
-| [Exa](https://exa.ai/) | Create an API key | `EXA_API_KEY` | Query text is sent to Exa |
+| [Tavily](https://tavily.com/) | Create an API key | `TAVILY_API_KEYS`, `TAVILY_API_URL` | Supports multiple server-side keys; URL defaults to the official API |
+| [Exa](https://exa.ai/) | Create an API key | `EXA_API_KEY`, `EXA_API_URL` | Query text is sent to Exa; URL defaults to the official API |
 | [Zhihu Global Search](https://developer.zhihu.com/docs?key=global_search) | Apply for an Access Secret | `ZHIHU_API_KEY`, `ZHIHU_TIMEOUT_SECONDS` | Fixed official endpoint; Chinese search evidence only |
 | [SerpJet](https://serpjet.io/docs.html) | Create one or two API keys; its documentation currently advertises 1,000 free searches per month | `SERPJET_API_KEYS`, `SERPJET_TIMEOUT_SECONDS` | Final Google-search fallback; keys never reach clients |
 | [Context7](https://context7.com/) | Obtain API access | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | Documentation-focused retrieval |

@@ -17,7 +17,7 @@ class ExaProvider:
         async def request() -> list[SearchResult]:
             async with build_client(self.settings) as client:
                 resp = await client.post(
-                    "https://api.exa.ai/search",
+                    f"{self.settings.exa_api_url}/search",
                     headers={
                         "x-api-key": self.settings.exa_api_key,
                         "Content-Type": "application/json",
