@@ -124,6 +124,27 @@ def test_oauth_dcr_pkce_and_one_shot_code_exchange():
         app.dependency_overrides.clear()
 
 
+def test_oauth_dcr_accepts_optional_refresh_token_metadata():
+    app.dependency_overrides[get_settings] = _settings
+    try:
+        client = TestClient(app)
+        registration = client.post(
+            "/oauth/register",
+            json={
+                "client_name": "ChatGPT",
+                "redirect_uris": ["https://chatgpt.com/connector_platform_oauth_redirect"],
+                "token_endpoint_auth_method": "none",
+                "response_types": ["code"],
+                "grant_types": ["authorization_code", "refresh_token"],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert registration.status_code == 201
+    assert registration.json()["grant_types"] == ["authorization_code"]
+
+
 def test_oauth_rejects_bad_pkce_and_unregistered_redirect():
     app.dependency_overrides[get_settings] = _settings
     try:

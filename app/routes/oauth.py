@@ -182,11 +182,22 @@ async def register_client(request: Request, settings: Settings = Depends(get_set
         if auth_method != "none":
             raise OAuthError("invalid_client_metadata", "仅支持 public client（token_endpoint_auth_method=none）")
         response_types = payload.get("response_types", ["code"])
-        if response_types != ["code"]:
+        if (
+            not isinstance(response_types, list)
+            or not response_types
+            or any(not isinstance(value, str) for value in response_types)
+            or set(response_types) != {"code"}
+        ):
             raise OAuthError("invalid_client_metadata", "仅支持 response_type=code")
         grant_types = payload.get("grant_types", ["authorization_code"])
-        if grant_types != ["authorization_code"]:
-            raise OAuthError("invalid_client_metadata", "仅支持 authorization_code")
+        if (
+            not isinstance(grant_types, list)
+            or not grant_types
+            or any(not isinstance(value, str) for value in grant_types)
+            or "authorization_code" not in grant_types
+            or set(grant_types) - {"authorization_code", "refresh_token"}
+        ):
+            raise OAuthError("invalid_client_metadata", "仅支持 authorization_code（可声明 refresh_token）")
         client_name = payload.get("client_name", "MCP client")
         if not isinstance(client_name, str):
             client_name = "MCP client"
