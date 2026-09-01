@@ -43,6 +43,14 @@ def test_oauth_metadata_advertises_mcp_authorization():
     assert metadata.json()["authorization_endpoint"] == "https://gateway.sayori.org/oauth/authorize"
     assert metadata.json()["code_challenge_methods_supported"] == ["S256"]
     assert metadata.json()["token_endpoint_auth_methods_supported"] == ["none"]
+    assert metadata.json()["scopes_supported"] == [
+        "mcp",
+        "notes:read",
+        "notes:write",
+        "files:read",
+        "files:write",
+        "vaults:read",
+    ]
 
 
 def test_oauth_dcr_pkce_and_one_shot_code_exchange():
@@ -122,6 +130,59 @@ def test_oauth_dcr_pkce_and_one_shot_code_exchange():
         assert reused.json()["error"] == "invalid_grant"
     finally:
         app.dependency_overrides.clear()
+
+
+def test_oauth_preserves_fns_granular_scopes_and_rejects_unknown_scope():
+    app.dependency_overrides[get_settings] = _settings
+    try:
+        client = TestClient(app)
+        registration = client.post(
+            "/oauth/register",
+            json={
+                "client_name": "ChatGPT",
+                "redirect_uris": ["https://chatgpt.com/connector_platform_oauth_redirect"],
+            },
+        )
+        assert registration.status_code == 201
+        client_id = registration.json()["client_id"]
+        verifier, challenge = _pkce()
+        params = {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": "https://chatgpt.com/connector_platform_oauth_redirect",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "resource": "https://gateway.sayori.org/mcp/fns",
+            "scope": "notes:read files:read vaults:read",
+        }
+        login = client.get("/oauth/authorize", params=params)
+        assert login.status_code == 200
+        approved = client.post(
+            "/oauth/authorize",
+            data={**params, "username": "owner", "password": "login-secret"},
+            follow_redirects=False,
+        )
+        assert approved.status_code == 302
+        code = parse_qs(urlparse(approved.headers["location"]).query)["code"][0]
+        exchanged = client.post(
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "code": code,
+                "redirect_uri": params["redirect_uri"],
+                "code_verifier": verifier,
+                "resource": params["resource"],
+            },
+        )
+        assert exchanged.status_code == 200
+        denied = client.get("/oauth/authorize", params={**params, "scope": "notes:admin"}, follow_redirects=False)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert exchanged.json()["scope"] == "mcp notes:read files:read vaults:read"
+    assert denied.status_code == 302
+    assert "invalid_scope" in denied.headers["location"]
 
 
 def test_oauth_dcr_accepts_optional_refresh_token_metadata():

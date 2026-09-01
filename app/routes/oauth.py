@@ -29,6 +29,11 @@ from app.oauth import (
 
 router = APIRouter(tags=["oauth"])
 OAUTH_SCOPE = "mcp"
+# FNS advertises these per-tool scopes in tools/list. Keep the gateway scope
+# for the Search MCP and legacy clients, while allowing ChatGPT to request
+# the granular FNS permissions during OAuth.
+FNS_SCOPES = ("notes:read", "notes:write", "files:read", "files:write", "vaults:read")
+SUPPORTED_SCOPES = (OAUTH_SCOPE, *FNS_SCOPES)
 
 
 def _issuer(settings: Settings) -> str:
@@ -89,6 +94,19 @@ def _form_values(body: bytes) -> dict[str, str]:
     return {key: values[-1] for key, values in parsed.items() if values}
 
 
+def _normalize_scopes(raw: str | None) -> str:
+    requested = set((raw or OAUTH_SCOPE).split())
+    requested.discard("")
+    if not requested:
+        requested = {OAUTH_SCOPE}
+    unsupported = requested - set(SUPPORTED_SCOPES)
+    if unsupported:
+        raise OAuthError("invalid_scope", "请求了不支持的 scope")
+    # Always retain the gateway scope so existing MCP middleware and legacy
+    # clients continue to work when a client asks only for FNS granular scopes.
+    return " ".join(scope for scope in SUPPORTED_SCOPES if scope == OAUTH_SCOPE or scope in requested)
+
+
 def _login_form(params: Mapping[str, str], *, error: str = "") -> str:
     fields = "\n".join(
         f'<input type="hidden" name="{html.escape(key, quote=True)}" value="{html.escape(value, quote=True)}">'
@@ -121,10 +139,7 @@ def _validate_authorize(params: Mapping[str, str], settings: Settings) -> tuple[
         raise OAuthError("invalid_request", "redirect_uri 未注册")
     challenge = validate_pkce_challenge(params.get("code_challenge"), params.get("code_challenge_method"))
     resource = validate_resource(params.get("resource"), _issuer(settings))
-    requested_scopes = set(params.get("scope", OAUTH_SCOPE).split())
-    if requested_scopes - {OAUTH_SCOPE}:
-        raise OAuthError("invalid_scope", "请求了不支持的 scope")
-    return client_id, client, redirect_uri, challenge, resource, OAUTH_SCOPE
+    return client_id, client, redirect_uri, challenge, resource, _normalize_scopes(params.get("scope"))
 
 
 @router.get("/.well-known/oauth-protected-resource", include_in_schema=False)
@@ -134,7 +149,7 @@ async def protected_resource(settings: Settings = Depends(get_settings)) -> JSON
         {
             "resource": issuer,
             "authorization_servers": [issuer],
-            "scopes_supported": [OAUTH_SCOPE],
+            "scopes_supported": list(SUPPORTED_SCOPES),
             "resource_documentation": f"{issuer}/docs",
         },
         headers={"Cache-Control": "public, max-age=300"},
@@ -155,7 +170,7 @@ async def authorization_server_metadata(settings: Settings = Depends(get_setting
             "grant_types_supported": ["authorization_code"],
             "token_endpoint_auth_methods_supported": ["none"],
             "code_challenge_methods_supported": ["S256"],
-            "scopes_supported": [OAUTH_SCOPE],
+            "scopes_supported": list(SUPPORTED_SCOPES),
             "client_id_metadata_document_supported": False,
         },
         headers={"Cache-Control": "public, max-age=300"},
