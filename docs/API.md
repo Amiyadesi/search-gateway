@@ -6,8 +6,12 @@ Every API endpoint except `GET /healthz` requires the deployment's gateway key
 via `X-API-Key` or `Authorization: Bearer ...`. `GET /docs` is a static project
 introduction and is not an API console.
 
-`POST /v1/answer-snapshots` accepts `X-Answer-API-Key` only for request-scoped
-custom API configuration. `POST /v1/answer-models` always requires it. This
+Public MCP transports use a separate `Authorization: Bearer ...` token from
+`MCP_ACCESS_TOKEN`; the internal REST key and FNS token are never forwarded to
+MCP clients.
+
+`POST /api/v1/answer-snapshots` accepts `X-Answer-API-Key` only for request-scoped
+custom API configuration. `POST /api/v1/answer-models` always requires it. This
 header is not a gateway credential and is never persisted or returned.
 
 ## Liveness and readiness
@@ -58,7 +62,7 @@ When SerpJet is configured, the gateway sends its server-owned key only to
 `X-API-KEY` header. Configure one or two keys with `SERPJET_API_KEYS`; clients
 never submit or receive them.
 
-### `POST /v1/evidence-search`
+### `POST /api/v1/evidence-search`
 
 ```json
 {
@@ -126,7 +130,7 @@ official endpoint:
 
 It sends `Authorization: Bearer ...`, a seconds-level `X-Request-Timestamp`,
 `Content-Type: application/json`, `Query`, bounded `Count`, and `SearchDB=all`.
-Clients cannot submit a Zhihu endpoint or credential. `GET /search` accepts
+Clients cannot submit a Zhihu endpoint or credential. `GET /api/search` accepts
 `provider=zhihu`; Chinese `provider=auto` queries prefer it when configured.
 Evidence v1 can use `zhihu` explicitly or select it for Chinese queries while
 still enforcing the two-provider-per-query budget.
@@ -164,7 +168,7 @@ and is disclosed in `limitations`.
 
 ## Answer snapshot v1
 
-### `POST /v1/answer-snapshots`
+### `POST /api/v1/answer-snapshots`
 
 ```json
 {
@@ -220,7 +224,7 @@ exception text. Failed requests return any phases observed before the failure.
 This endpoint records API observations only. It does not claim equivalence to a
 provider's website, app, personalized account, region, or consumer search mode.
 
-### `POST /v1/answer-models`
+### `POST /api/v1/answer-models`
 
 ```json
 {
@@ -256,7 +260,7 @@ upstream body.
 
 ## Extraction and research quality
 
-### `POST /extract`
+### `POST /api/extract`
 
 The extraction response includes a deterministic Markdown quality assessment:
 
@@ -281,7 +285,7 @@ text remained and returns `success: false`. A screenshot can still be returned
 as auxiliary evidence, but it does not turn non-text Markdown into a successful
 text extraction.
 
-### `POST /research`
+### `POST /api/research`
 
 Research runs search, concurrent extraction, and model synthesis within one
 `RESEARCH_TIMEOUT_SECONDS` budget. Each context adds:
@@ -314,7 +318,7 @@ upstream response bodies. Non-complete contexts remain visible even when
 
 ## IP information
 
-### `GET /ipinfo?ip={IPv4-or-IPv6}`
+### `GET /api/ipinfo?ip={IPv4-or-IPv6}`
 
 The route validates and normalizes the target IP locally, then checks the
 normal response cache. A configured IPInfo-compatible service is preferred.
@@ -389,6 +393,5 @@ not flattened; its structured gateway body is preserved in `error`.
 
 ## Compatibility
 
-`GET /search` and all pre-Evidence MCP tools preserve their existing request and
-response contracts. Evidence v1 uses new versioned routes and independent cache
-keys.
+All REST capabilities are mounted below `/api`; `/healthz` and `/readyz` remain
+top-level probes. The public MCP transports are `/mcp/search` and `/mcp/fns`.

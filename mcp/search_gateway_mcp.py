@@ -225,6 +225,8 @@ REMOTE_SESSION = RemoteGatewaySession()
 
 def call_gateway(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
     """不在本地保存网关密钥；每次经 SSH 在服务器内调用本机 API。"""
+    if os.environ.get("MCP_SEARCH_GATEWAY_LOCAL", "").strip().lower() in {"1", "true", "yes"}:
+        return call_gateway_local(payload, timeout=timeout)
     use_persistent = os.environ.get("MCP_SEARCH_GATEWAY_PERSISTENT_SSH", "").strip().lower()
     persistent_enabled = DEFAULT_USE_PERSISTENT_SSH if not use_persistent else use_persistent not in {"0", "false", "no"}
     persistent_error = ""
@@ -239,6 +241,50 @@ def call_gateway(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
     if persistent_error and not result.get("ok"):
         result["persistent_error"] = persistent_error
     return result
+
+
+def call_gateway_local(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
+    """HTTP mode used by the in-container Streamable HTTP MCP endpoint."""
+    started = time.monotonic()
+    from urllib import error, request
+
+    base_url = os.environ.get("MCP_GATEWAY_URL", "http://127.0.0.1:8000").rstrip("/")
+    api_key = os.environ.get("GATEWAY_API_KEY", "")
+    path = payload.get("path")
+    if not api_key:
+        return {"ok": False, "status": 0, "error": "本地 MCP 缺少 GATEWAY_API_KEY"}
+    if not isinstance(path, str) or not path.startswith("/"):
+        return {"ok": False, "status": 0, "error": "本地 MCP 请求缺少合法 path"}
+    body = payload.get("body")
+    data = None
+    headers = {"X-API-Key": api_key}
+    if body is not None:
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = request.Request(
+        base_url + path,
+        data=data,
+        headers=headers,
+        method=payload.get("method", "GET"),
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as resp:
+            return {"ok": True, "status": resp.status, "data": json.loads(resp.read().decode("utf-8"))}
+    except error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", "ignore")
+        try:
+            detail = json.loads(raw)
+        except Exception:
+            detail = raw[:1000]
+        return {"ok": False, "status": exc.code, "error": detail}
+    except TimeoutError:
+        return gateway_timeout_result(started, "gateway")
+    except OSError:
+        return {
+            "ok": False,
+            "status": 0,
+            "error": {"code": "GATEWAY_NETWORK_ERROR", "retryable": True, "message": "搜索网关网络错误"},
+        }
 
 
 def call_gateway_once(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
@@ -521,7 +567,7 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         query = require_text_arg(args, "query")
         provider = args.get("provider", "auto")
         max_results = clamp_int(args.get("max_results", 5), 1, 10)
-        path = "/search?" + parse_query({"q": query, "provider": provider, "max_results": max_results})
+        path = "/api/search?" + parse_query({"q": query, "provider": provider, "max_results": max_results})
         result = call_gateway({"method": "GET", "path": path, "timeout": 90}, timeout=120)
     elif name == "ai_evidence_search":
         queries = require_text_list_arg(args, "queries", maximum=3)
@@ -547,7 +593,7 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "rerank": bool(args.get("rerank", True)),
         }
         result = call_gateway(
-            {"method": "POST", "path": "/v1/evidence-search", "body": body, "timeout": 40},
+            {"method": "POST", "path": "/api/v1/evidence-search", "body": body, "timeout": 40},
             timeout=60,
         )
     elif name == "ai_answer_snapshot":
@@ -556,14 +602,14 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "locale": optional_text_arg(args, "locale") or "en-US",
         }
         result = call_gateway(
-            {"method": "POST", "path": "/v1/answer-snapshots", "body": body, "timeout": 120},
+            {"method": "POST", "path": "/api/v1/answer-snapshots", "body": body, "timeout": 120},
             timeout=150,
         )
     elif name in {"ai_extract", "ai_fetch_page"}:
         result = call_gateway(
             {
                 "method": "POST",
-                "path": "/extract",
+                "path": "/api/extract",
                 "body": {
                     "url": require_text_arg(args, "url"),
                     "screenshot_mode": normalize_choice(args.get("screenshot_mode", "auto"), SCREENSHOT_MODES, "auto"),
@@ -587,7 +633,7 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             ),
             "delay_ms": clamp_int(args.get("delay_ms", 0), 0, 10000),
         }
-        result = call_gateway({"method": "POST", "path": "/screenshot", "body": body, "timeout": 120}, timeout=160)
+        result = call_gateway({"method": "POST", "path": "/api/screenshot", "body": body, "timeout": 120}, timeout=160)
     elif name == "ai_summary":
         body = {
             "query": require_text_arg(args, "query"),
@@ -597,7 +643,7 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "screenshot_mode": normalize_choice(args.get("screenshot_mode", "auto"), SCREENSHOT_MODES, "auto"),
         }
         result = call_gateway(
-            {"method": "POST", "path": "/summary", "body": body, "timeout": 180},
+            {"method": "POST", "path": "/api/summary", "body": body, "timeout": 180},
             timeout=220,
         )
     elif name == "ai_analyze_url":
@@ -607,7 +653,7 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             body["question"] = question
         body["screenshot_mode"] = normalize_choice(args.get("screenshot_mode", "auto"), SCREENSHOT_MODES, "auto")
         result = call_gateway(
-            {"method": "POST", "path": "/analyze-url", "body": body, "timeout": 180},
+            {"method": "POST", "path": "/api/analyze-url", "body": body, "timeout": 180},
             timeout=220,
         )
     elif name == "ai_research":
@@ -620,14 +666,14 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "screenshot_mode": normalize_choice(args.get("screenshot_mode", "auto"), SCREENSHOT_MODES, "auto"),
         }
         result = call_gateway(
-            {"method": "POST", "path": "/research", "body": body, "timeout": 180},
+            {"method": "POST", "path": "/api/research", "body": body, "timeout": 180},
             timeout=220,
         )
     elif name == "ai_ipinfo":
-        path = "/ipinfo?" + parse_query({"ip": require_text_arg(args, "ip")})
+        path = "/api/ipinfo?" + parse_query({"ip": require_text_arg(args, "ip")})
         result = call_gateway({"method": "GET", "path": path, "timeout": 30}, timeout=60)
     elif name == "gateway_health":
-        result = call_gateway({"method": "GET", "path": "/health", "timeout": 30}, timeout=60)
+        result = call_gateway({"method": "GET", "path": "/api/health", "timeout": 30}, timeout=60)
     else:
         return text_result({"error": f"未知工具: {name}"}, is_error=True)
 

@@ -11,6 +11,7 @@ from app.services.cache_service import CacheService
 from app.services.screenshot_service import ScreenshotService
 
 router = APIRouter(tags=["health"])
+api_router = APIRouter(tags=["health"])
 
 
 @router.get("/healthz")
@@ -30,7 +31,7 @@ async def readyz(
     return result
 
 
-@router.get("/health", response_model=HealthResponse)
+@api_router.get("/health", response_model=HealthResponse)
 async def health(_: None = Depends(require_api_key), settings: Settings = Depends(get_settings)) -> HealthResponse:
     cache = CacheService(settings)
     redis_ok = await cache.ping()
@@ -98,3 +99,6 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
         ),
     }
     return HealthResponse(success=True, api="ok", redis="ok" if redis_ok else "unavailable", providers=providers)
+
+
+__all__ = ["api_router", "health", "readyz", "router", "healthz"]

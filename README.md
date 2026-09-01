@@ -9,33 +9,35 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
 
 ## What it does
 
-- `GET /search` routes a query to a configured web, documentation, code,
+- `GET /api/search` routes a query to a configured web, documentation, code,
   encyclopedia, academic, or open-data provider.
 - SerpJet can act as the final Google web-search fallback. Up to two server-side
   keys are tried without exposing either key to clients.
-- `POST /v1/evidence-search` runs a bounded multi-query/multi-source evidence
+- `POST /api/v1/evidence-search` runs a bounded multi-query/multi-source evidence
   pipeline with URL cleanup, canonical/content deduplication, RRF ranking,
   domain diversity, optional extraction, provenance, budgets, and structured
   partial failures.
-- `POST /v1/answer-snapshots` records API-only answer observations through the
+- `POST /api/v1/answer-snapshots` records API-only answer observations through the
   fixed server fallback or a request-scoped OpenAI-compatible API. Custom API
   keys and base URLs are never cached, persisted, logged, or returned.
-- `POST /v1/answer-models` lists bounded, sanitized model IDs from a
+- `POST /api/v1/answer-models` lists bounded, sanitized model IDs from a
   request-scoped OpenAI-compatible API.
-- `POST /extract` fetches Markdown from a public page and labels it `usable`,
+- `POST /api/extract` fetches Markdown from a public page and labels it `usable`,
   `thin`, or `non_text` so image proxies and navigation piles are not reported
   as complete readable content.
-- `POST /screenshot` captures a public page and stores a short-lived,
+- `POST /api/screenshot` captures a public page and stores a short-lived,
   authenticated cache entry.
-- `POST /summary`, `POST /research`, and `POST /analyze-url` compose the
+- `POST /api/summary`, `POST /api/research`, and `POST /api/analyze-url` compose the
   available evidence into a bounded result. They return a deterministic
   degraded response when an optional model is unavailable.
 - `GET /healthz` is an unauthenticated, dependency-free liveness endpoint.
   Authenticated `GET /readyz` checks only configured internal Redis, SearXNG,
-  and GrokSearch bridge dependencies; authenticated `GET /health` shows
+  and GrokSearch bridge dependencies; authenticated `GET /api/health` shows
   non-secret provider configuration state.
 - `mcp/search_gateway_mcp.py` is an optional stdio MCP adapter. It can call a
   gateway over SSH without keeping the gateway API key on the local machine.
+- Public Streamable HTTP MCP endpoints are `/mcp/search` and `/mcp/fns`; both
+  use the separate `MCP_ACCESS_TOKEN` bearer credential.
 
 The gateway does not ship a search index or third-party credentials. Enable
 only the providers you are authorized to use.
@@ -72,7 +74,7 @@ Authenticated requests use `X-API-Key` or a Bearer token:
 
 ```bash
 curl -H "X-API-Key: $GATEWAY_API_KEY" \
-  "http://127.0.0.1:8000/search?q=FastAPI%20dependency%20injection"
+  "http://127.0.0.1:8000/api/search?q=FastAPI%20dependency%20injection"
 ```
 
 ## Configuration
@@ -150,18 +152,18 @@ request examples. Free quotas change; provider pages remain authoritative.
 | --- | --- | --- |
 | `GET` | `/healthz` | Liveness probe without credentials |
 | `GET` | `/readyz` | Authenticated readiness probe for configured internal dependencies |
-| `GET` | `/health` | Authenticated provider and cache status |
-| `GET` | `/search` | Search with an optional `provider` selector |
-| `POST` | `/v1/evidence-search` | Bounded, fused, provenance-rich search evidence |
-| `POST` | `/v1/answer-snapshots` | Zero-persistence API answer observations |
-| `POST` | `/v1/answer-models` | Sanitized request-scoped model IDs |
-| `POST` | `/extract` | Extract readable page content |
-| `POST` | `/screenshot` | Capture a public page |
-| `GET` | `/screenshot-cache/{id}` | Read a cached screenshot |
-| `POST` | `/summary` | Search and produce a bounded summary |
-| `POST` | `/research` | Search, extract, and synthesize evidence |
-| `POST` | `/analyze-url` | Analyze one public URL |
-| `GET` | `/ipinfo` | IP geolocation/intelligence lookup with optional IP.SB fallback |
+| `GET` | `/api/health` | Authenticated provider and cache status |
+| `GET` | `/api/search` | Search with an optional `provider` selector |
+| `POST` | `/api/v1/evidence-search` | Bounded, fused, provenance-rich search evidence |
+| `POST` | `/api/v1/answer-snapshots` | Zero-persistence API answer observations |
+| `POST` | `/api/v1/answer-models` | Sanitized request-scoped model IDs |
+| `POST` | `/api/extract` | Extract readable page content |
+| `POST` | `/api/screenshot` | Capture a public page |
+| `GET` | `/api/screenshot-cache/{id}` | Read a cached screenshot |
+| `POST` | `/api/summary` | Search and produce a bounded summary |
+| `POST` | `/api/research` | Search, extract, and synthesize evidence |
+| `POST` | `/api/analyze-url` | Analyze one public URL |
+| `GET` | `/api/ipinfo` | IP geolocation/intelligence lookup with optional IP.SB fallback |
 
 The public `/docs` route is intentionally an introduction page, not an API
 console. Authenticated operators can fetch `/openapi.json` from their own
@@ -184,7 +186,7 @@ at two. With three queries, the request can therefore perform at most six
 search calls.
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/v1/evidence-search" \
+curl -X POST "http://127.0.0.1:8000/api/v1/evidence-search" \
   -H "X-API-Key: $GATEWAY_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -200,7 +202,7 @@ curl -X POST "http://127.0.0.1:8000/v1/evidence-search" \
 ### Request-scoped answer API
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/v1/answer-snapshots" \
+curl -X POST "http://127.0.0.1:8000/api/v1/answer-snapshots" \
   -H "X-API-Key: $GATEWAY_API_KEY" \
   -H "X-Answer-API-Key: $REQUEST_API_KEY" \
   -H "Content-Type: application/json" \
@@ -222,7 +224,7 @@ Model selection can use the same request-scoped key without exposing upstream
 metadata:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/v1/answer-models" \
+curl -X POST "http://127.0.0.1:8000/api/v1/answer-models" \
   -H "X-API-Key: $GATEWAY_API_KEY" \
   -H "X-Answer-API-Key: $REQUEST_API_KEY" \
   -H "Content-Type: application/json" \

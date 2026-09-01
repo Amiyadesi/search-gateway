@@ -77,7 +77,7 @@ the independent `RESEARCH_TIMEOUT_SECONDS` end-to-end budget.
 3. Enable the smallest provider set needed for the workload
 4. Keep the service bound to localhost, a private network, or an authenticated
    edge policy
-5. Verify `/healthz`, then call authenticated `/readyz` and `/health`
+5. Verify `/healthz`, then call authenticated `/readyz` and `/api/health`
 6. Run a bounded test query and inspect provenance before enabling automation
 
 The hosted Sayori instance is private infrastructure. This document helps you
@@ -86,7 +86,7 @@ call that instance.
 
 ## IP intelligence fallback
 
-`GET /ipinfo?ip=...` keeps a configured IPInfo-compatible source as its first
+`GET /api/ipinfo?ip=...` keeps a configured IPInfo-compatible source as its first
 choice. When that source is absent or has a retryable upstream failure, the
 gateway can use IP.SB's public `GET /geoip/{ip}` endpoint. IP.SB needs no API
 key; its current documentation advertises 200 requests per 10 minutes per

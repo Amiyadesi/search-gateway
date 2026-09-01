@@ -22,8 +22,8 @@ def test_openapi_reports_1_2_contract_and_custom_api_guidance():
     schema = app.openapi()
 
     assert schema["info"]["version"] == "1.2.2"
-    answer_route = schema["paths"]["/v1/answer-snapshots"]["post"]
-    models_route = schema["paths"]["/v1/answer-models"]["post"]
+    answer_route = schema["paths"]["/api/v1/answer-snapshots"]["post"]
+    models_route = schema["paths"]["/api/v1/answer-models"]["post"]
     assert answer_route["summary"] == "Observe answers from one OpenAI-compatible API"
     assert "/v1" in answer_route["description"]
     assert "/v1" in models_route["description"]
@@ -104,7 +104,7 @@ def test_evidence_route_returns_structured_503(monkeypatch):
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/evidence-search",
+            "/api/v1/evidence-search",
             headers={"X-API-Key": "gateway-test"},
             json={"queries": ["q"], "providers": ["brave"], "budget": {"max_extract_pages": 0}},
         )
@@ -151,7 +151,7 @@ def test_answer_snapshot_route_passes_key_only_to_request_service(monkeypatch):
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-snapshots",
+            "/api/v1/answer-snapshots",
             headers={"X-API-Key": "gateway-test", "X-Answer-API-Key": "request-secret"},
             json={"queries": ["q"]},
         )
@@ -181,7 +181,7 @@ def test_answer_models_route_returns_sanitized_ids(monkeypatch):
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-models",
+            "/api/v1/answer-models",
             headers={"X-API-Key": "gateway-test", "X-Answer-API-Key": "request-secret"},
             json={"api_base_url": "https://api.public-service.com/v1"},
         )
@@ -198,7 +198,7 @@ def test_answer_models_route_requires_request_key():
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-models",
+            "/api/v1/answer-models",
             headers={"X-API-Key": "gateway-test"},
             json={"api_base_url": "https://api.public-service.com/v1"},
         )
@@ -213,7 +213,7 @@ def test_answer_models_route_rejects_unsafe_url_without_echoing_it():
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-models",
+            "/api/v1/answer-models",
             headers={"X-API-Key": "gateway-test", "X-Answer-API-Key": "request-secret"},
             json={"api_base_url": "http://127.0.0.1:8080/v1?secret=value"},
         )
@@ -230,7 +230,7 @@ def test_answer_snapshot_partial_custom_config_is_rejected_without_echoing_url()
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-snapshots",
+            "/api/v1/answer-snapshots",
             headers={"X-API-Key": "gateway-test", "X-Answer-API-Key": "request-secret"},
             json={"queries": ["q"], "api_base_url": "https://sensitive.example/v1"},
         )
@@ -246,7 +246,7 @@ def test_validation_errors_do_not_echo_misplaced_secret_fields():
     app.dependency_overrides[get_settings] = lambda: Settings(gateway_api_key="gateway-test")
     try:
         response = TestClient(app).post(
-            "/v1/answer-snapshots",
+            "/api/v1/answer-snapshots",
             headers={"X-API-Key": "gateway-test"},
             json={"queries": ["q"], "api_key": "misplaced-secret"},
         )

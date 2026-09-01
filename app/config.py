@@ -21,6 +21,32 @@ class Settings(BaseSettings):
 
     gateway_api_key: str = Field(default="", alias="GATEWAY_API_KEY")
 
+    # Public MCP uses a separate bearer token from the internal REST key.
+    mcp_access_token: str = Field(default="", alias="MCP_ACCESS_TOKEN")
+    fns_mcp_base_url: str = Field(
+        default="http://fast-note-sync-home:9000",
+        alias="FNS_MCP_BASE_URL",
+    )
+    fns_mcp_token: str = Field(default="", alias="FNS_MCP_TOKEN")
+    mcp_rate_limit_per_minute: int = Field(
+        default=60,
+        ge=1,
+        le=600,
+        alias="MCP_RATE_LIMIT_PER_MINUTE",
+    )
+    mcp_confirmation_ttl_seconds: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+        alias="MCP_CONFIRMATION_TTL_SECONDS",
+    )
+    mcp_http_timeout_seconds: float = Field(
+        default=180.0,
+        gt=1,
+        le=600,
+        alias="MCP_HTTP_TIMEOUT_SECONDS",
+    )
+
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
     tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
     tavily_api_keys: str = Field(default="", alias="TAVILY_API_KEYS")

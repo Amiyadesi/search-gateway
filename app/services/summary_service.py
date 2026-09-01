@@ -541,7 +541,7 @@ class SummaryService:
         snippet_text = "\n".join(snippets) if snippets else "- 暂无可用正文，只返回来源列表。"
         return (
             f"查询：{query}\n\n"
-            "AI 总结模型暂时超时，已返回搜索资料降级摘要。你可以稍后重试 /summary，"
+            "AI 总结模型暂时超时，已返回搜索资料降级摘要。你可以稍后重试 /api/summary，"
             "或先基于以下来源继续阅读。\n\n"
             f"超时原因：{reason}\n\n"
             f"资料要点：\n{snippet_text}\n\n"

@@ -35,7 +35,7 @@ def test_ipinfo_uses_ipsb_when_primary_provider_is_not_configured(monkeypatch):
 
     try:
         response = TestClient(app).get(
-            "/ipinfo",
+            "/api/ipinfo",
             params={"ip": "1.1.1.1"},
             headers={"X-API-Key": "test-key"},
         )
@@ -77,7 +77,7 @@ def test_ipinfo_falls_back_to_ipsb_after_primary_upstream_failure(monkeypatch):
 
     try:
         response = TestClient(app).get(
-            "/ipinfo",
+            "/api/ipinfo",
             params={"ip": "8.8.8.8"},
             headers={"X-API-Key": "test-key"},
         )
@@ -105,7 +105,7 @@ def test_ipinfo_rejects_invalid_ip_without_calling_any_upstream(monkeypatch):
 
     try:
         response = TestClient(app).get(
-            "/ipinfo",
+            "/api/ipinfo",
             params={"ip": "not-an-ip"},
             headers={"X-API-Key": "test-key"},
         )

@@ -25,6 +25,7 @@ services:
     networks:
       - default
       - edge
+      - fast_note_sync
     logging:
       driver: json-file
       options:
@@ -112,3 +113,6 @@ networks:
   edge:
     name: ${EDGE_NETWORK_NAME:-search-gateway-edge}
     external: ${EDGE_NETWORK_EXTERNAL:-false}
+  fast_note_sync:
+    name: fast-note-sync_default
+    external: true

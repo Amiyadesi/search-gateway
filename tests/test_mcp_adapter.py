@@ -258,7 +258,7 @@ def test_mcp_new_analysis_tools_call_expected_routes(monkeypatch):
     )
     adapter.handle_tool_call("ai_fetch_page", {"url": "https://example.com"})
 
-    assert calls[0]["payload"]["path"] == "/research"
+    assert calls[0]["payload"]["path"] == "/api/research"
     assert calls[0]["payload"]["body"] == {
         "query": "Godot AI news",
         "provider": "grok",
@@ -267,13 +267,13 @@ def test_mcp_new_analysis_tools_call_expected_routes(monkeypatch):
         "include_markdown": True,
         "screenshot_mode": "auto",
     }
-    assert calls[1]["payload"]["path"] == "/analyze-url"
+    assert calls[1]["payload"]["path"] == "/api/analyze-url"
     assert calls[1]["payload"]["body"] == {
         "url": "https://example.com",
         "question": "What changed?",
         "screenshot_mode": "auto",
     }
-    assert calls[2]["payload"]["path"] == "/extract"
+    assert calls[2]["payload"]["path"] == "/api/extract"
     assert calls[2]["payload"]["body"] == {"url": "https://example.com", "screenshot_mode": "auto"}
 
 
@@ -303,7 +303,7 @@ def test_mcp_evidence_tools_call_versioned_routes(monkeypatch):
     )
     adapter.handle_tool_call("ai_answer_snapshot", {"queries": ["one"], "locale": "en-US"})
 
-    assert calls[0]["payload"]["path"] == "/v1/evidence-search"
+    assert calls[0]["payload"]["path"] == "/api/v1/evidence-search"
     assert calls[0]["payload"]["body"] == {
         "queries": ["one", "two"],
         "locale": "zh-CN",
@@ -321,7 +321,7 @@ def test_mcp_evidence_tools_call_versioned_routes(monkeypatch):
         },
         "rerank": False,
     }
-    assert calls[1]["payload"]["path"] == "/v1/answer-snapshots"
+    assert calls[1]["payload"]["path"] == "/api/v1/answer-snapshots"
     assert calls[1]["payload"]["body"] == {"queries": ["one"], "locale": "en-US"}
 
 
@@ -349,7 +349,7 @@ def test_mcp_screenshot_tool_calls_screenshot_route(monkeypatch):
         },
     )
 
-    assert calls[0]["payload"]["path"] == "/screenshot"
+    assert calls[0]["payload"]["path"] == "/api/screenshot"
     assert calls[0]["payload"]["body"] == {
         "url": "https://example.com",
         "provider": "apiflash",
