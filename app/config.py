@@ -46,6 +46,33 @@ class Settings(BaseSettings):
         le=600,
         alias="MCP_HTTP_TIMEOUT_SECONDS",
     )
+    # OAuth 2.1 for public MCP clients. Empty secrets intentionally fall back
+    # to MCP_ACCESS_TOKEN so existing deployments need no credential migration.
+    mcp_oauth_issuer: str = Field(
+        default="https://gateway.sayori.org",
+        alias="MCP_OAUTH_ISSUER",
+    )
+    mcp_oauth_login_username: str = Field(default="owner", alias="MCP_OAUTH_LOGIN_USERNAME")
+    mcp_oauth_login_secret: str = Field(default="", alias="MCP_OAUTH_LOGIN_SECRET")
+    mcp_oauth_signing_secret: str = Field(default="", alias="MCP_OAUTH_SIGNING_SECRET")
+    mcp_oauth_code_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=900,
+        alias="MCP_OAUTH_CODE_TTL_SECONDS",
+    )
+    mcp_oauth_access_token_ttl_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=2_592_000,
+        alias="MCP_OAUTH_ACCESS_TOKEN_TTL_SECONDS",
+    )
+    mcp_oauth_client_ttl_seconds: int = Field(
+        default=31_536_000,
+        ge=3600,
+        le=31_536_000,
+        alias="MCP_OAUTH_CLIENT_TTL_SECONDS",
+    )
 
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
     tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
@@ -295,6 +322,11 @@ class Settings(BaseSettings):
     @field_validator("grok_base_url", "groksearch_bridge_url")
     @classmethod
     def strip_grok_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
+
+    @field_validator("mcp_oauth_issuer")
+    @classmethod
+    def strip_oauth_issuer_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
 
     @field_validator("ipinfo_base_url", "ipsb_base_url")

@@ -36,8 +36,9 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
   non-secret provider configuration state.
 - `mcp/search_gateway_mcp.py` is an optional stdio MCP adapter. It can call a
   gateway over SSH without keeping the gateway API key on the local machine.
-- Public Streamable HTTP MCP endpoints are `/mcp/search` and `/mcp/fns`; both
-  use the separate `MCP_ACCESS_TOKEN` bearer credential.
+- Public Streamable HTTP MCP endpoints are `/mcp/search` and `/mcp/fns`. They
+  accept the legacy `MCP_ACCESS_TOKEN` bearer and OAuth 2.1 authorization-code
+  + PKCE (S256) tokens.
 
 The gateway does not ship a search index or third-party credentials. Enable
 only the providers you are authorized to use.
@@ -87,6 +88,12 @@ Useful defaults:
 
 - `GATEWAY_API_KEY` protects every endpoint except `/healthz` and the public
   project-introduction page at `/docs`.
+- OAuth discovery is available at
+  `/.well-known/oauth-protected-resource` and
+  `/.well-known/oauth-authorization-server`; the first-party authorization
+  endpoints are `/oauth/register`, `/oauth/authorize`, and `/oauth/token`.
+  Leave `MCP_OAUTH_LOGIN_SECRET` and `MCP_OAUTH_SIGNING_SECRET` empty to reuse
+  the existing `MCP_ACCESS_TOKEN`, or set separate deployment secrets.
 - `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` are optional
   deployment-local networking settings. The repository does not prescribe a
   proxy or network name.

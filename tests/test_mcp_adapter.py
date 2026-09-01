@@ -156,6 +156,7 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
         )
         assert "普通搜索请保持 provider=auto" in search_tool["description"]
         assert "普通搜索优先 SearXNG" not in search_tool["description"]
+        assert search_tool["securitySchemes"] == [{"type": "oauth2", "scopes": ["mcp"]}]
         assert {
             "duckduckgo",
             "github",

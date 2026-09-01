@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 
-SERVER_INFO = {"name": "ai-search-gateway", "version": "1.2.2"}
+SERVER_INFO = {"name": "ai-search-gateway", "version": "1.2.3"}
 DEFAULT_MCP_TEXT_MAX_CHARS = 60000
 DEFAULT_USE_PERSISTENT_SSH = True
 DEFAULT_REMOTE_DIR = "/home/amiya/search-gateway-shadow"
@@ -351,7 +351,7 @@ def text_result(data: Any, is_error: bool = False) -> dict[str, Any]:
 
 
 def tool_definitions() -> list[dict[str, Any]]:
-    return [
+    tools = [
         {
             "name": "ai_search",
             "description": "调用远端 AI Search Gateway 搜索。普通搜索请保持 provider=auto，让网关自动选择可靠上游并兜底；技术/AI/论文会自动偏向 Exa，实时/最新信息可显式选择 Grok；只有用户指定时才显式选择 SearXNG、文档、代码社区、百科、学术或开放数据 provider。",
@@ -560,6 +560,9 @@ def tool_definitions() -> list[dict[str, Any]]:
             "inputSchema": {"type": "object", "properties": {}},
         },
     ]
+    for tool in tools:
+        tool["securitySchemes"] = [{"type": "oauth2", "scopes": ["mcp"]}]
+    return tools
 
 
 def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:

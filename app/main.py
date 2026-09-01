@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.config import get_settings
-from app.routes import evidence, extract, health, ipinfo, mcp, screenshot, search, summary
+from app.routes import evidence, extract, health, mcp, oauth, ipinfo, screenshot, search, summary
 from app.utils.auth import require_api_key
 from app.utils.errors import GatewayError
 from app.utils.logging import configure_logging, logger
@@ -26,7 +26,7 @@ public_docs_html = (Path(__file__).parent / "static" / "public_docs.html").read_
 )
 app = FastAPI(
     title=settings.app_name,
-    version="1.2.2",
+    version="1.2.3",
     description=(
         "Authenticated, provider-neutral search and evidence gateway. "
         "Answer snapshots are dated API observations and do not represent consumer interfaces."
@@ -46,6 +46,7 @@ app.include_router(summary.router, prefix="/api")
 app.include_router(ipinfo.router, prefix="/api")
 app.include_router(evidence.router, prefix="/api")
 app.include_router(mcp.router)
+app.include_router(oauth.router)
 
 
 @app.get("/docs", include_in_schema=False, response_class=HTMLResponse)
@@ -78,10 +79,13 @@ async def gateway_error_handler(_: Request, exc: GatewayError) -> JSONResponse:
             content["code"] = exc.detail["code"]
         if isinstance(exc.detail.get("retryable"), bool):
             content["retryable"] = exc.detail["retryable"]
-    return JSONResponse(
+    response = JSONResponse(
         status_code=exc.status_code,
         content=content,
     )
+    if isinstance(exc.detail, dict) and isinstance(exc.detail.get("www_authenticate"), str):
+        response.headers["WWW-Authenticate"] = exc.detail["www_authenticate"]
+    return response
 
 
 @app.exception_handler(RequestValidationError)

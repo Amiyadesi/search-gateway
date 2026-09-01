@@ -18,7 +18,7 @@ from app.mcp_security import (
     McpAuthError,
     McpRateLimitError,
     token_fingerprint,
-    validate_access_token,
+    validate_mcp_token,
 )
 from app.utils.errors import GatewayError
 from app.utils.logging import logger
@@ -43,12 +43,36 @@ def _client_identity(request: Request, token: str) -> str:
 
 
 def _authorize(request: Request, settings: Settings) -> str:
+    issuer = settings.mcp_oauth_issuer.rstrip("/")
+    path = request.url.path
+    if path.startswith("/mcp/fns"):
+        path = "/mcp/fns"
+    elif path.startswith("/mcp/search"):
+        path = "/mcp/search"
+    resource = f"{issuer}{path}"
     try:
-        token = validate_access_token(request.headers.get("Authorization"), settings.mcp_access_token)
+        token = validate_mcp_token(
+            request.headers.get("Authorization"),
+            legacy_token=settings.mcp_access_token,
+            oauth_signing_secret=settings.mcp_oauth_signing_secret or settings.mcp_access_token,
+            oauth_issuer=settings.mcp_oauth_issuer,
+            oauth_resource=resource,
+        )
         MCP_RATE_LIMITER.check(_client_identity(request, token), settings.mcp_rate_limit_per_minute)
         return token
     except McpAuthError as exc:
-        raise GatewayError(str(exc), status_code=status.HTTP_401_UNAUTHORIZED) from exc
+        raise GatewayError(
+            str(exc),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "www_authenticate": (
+                    'Bearer resource_metadata="'
+                    f'{issuer}/.well-known/oauth-protected-resource", '
+                    'scope="mcp", error="invalid_token", '
+                    'error_description="OAuth authorization required"'
+                )
+            },
+        ) from exc
     except McpRateLimitError as exc:
         raise GatewayError(
             str(exc),

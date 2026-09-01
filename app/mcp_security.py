@@ -10,6 +10,8 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
 
+from app.oauth import OAuthError, verify_access_token
+
 
 class McpAuthError(ValueError):
     """Raised when the public MCP bearer token is missing or invalid."""
@@ -36,6 +38,32 @@ def validate_access_token(authorization: str | None, expected: str) -> str:
     token = extract_bearer(authorization)
     if not expected or not token or not secrets.compare_digest(token, expected):
         raise McpAuthError("MCP 未授权")
+    return token
+
+
+def validate_mcp_token(
+    authorization: str | None,
+    *,
+    legacy_token: str,
+    oauth_signing_secret: str,
+    oauth_issuer: str,
+    oauth_resource: str,
+) -> str:
+    """Accept the legacy bearer while validating signed OAuth access tokens."""
+    token = extract_bearer(authorization)
+    if legacy_token and token and secrets.compare_digest(token, legacy_token):
+        return token
+    if not token or not oauth_signing_secret:
+        raise McpAuthError("MCP 未授权")
+    try:
+        verify_access_token(
+            token,
+            secret=oauth_signing_secret,
+            issuer=oauth_issuer,
+            resource=oauth_resource,
+        )
+    except OAuthError as exc:
+        raise McpAuthError(exc.description) from exc
     return token
 
 
@@ -123,5 +151,6 @@ __all__ = [
     "McpRateLimitError",
     "extract_bearer",
     "token_fingerprint",
+    "validate_mcp_token",
     "validate_access_token",
 ]
