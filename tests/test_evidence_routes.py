@@ -21,7 +21,7 @@ from app.schemas.evidence import (
 def test_openapi_reports_1_2_contract_and_custom_api_guidance():
     schema = app.openapi()
 
-    assert schema["info"]["version"] == "1.2.2"
+    assert schema["info"]["version"] == app.version
     answer_route = schema["paths"]["/api/v1/answer-snapshots"]["post"]
     models_route = schema["paths"]["/api/v1/answer-models"]["post"]
     assert answer_route["summary"] == "Observe answers from one OpenAI-compatible API"
