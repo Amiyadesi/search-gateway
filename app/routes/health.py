@@ -88,6 +88,7 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
             configured=bool(settings.ipsb_enabled and settings.ipsb_base_url),
         ),
         "firecrawl": ProviderHealth(configured=bool(settings.firecrawl_api_key)),
+        "bing_webmaster": ProviderHealth(configured=bool(settings.bing_webmaster_api_key)),
         "screenshot": ProviderHealth(configured=bool(screenshot_configured), upstreams=len(screenshot_configured)),
         "summary": ProviderHealth(
             configured=bool(settings.summary_api_key or settings.openai_api_key or settings.deepseek_api_key),

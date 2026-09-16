@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     gateway_api_key: str = Field(default="", alias="GATEWAY_API_KEY")
+    bing_webmaster_api_key: str = Field(default="", alias="BING_WEBMASTER_API_KEY")
+    bing_webmaster_timeout_seconds: float = Field(
+        default=20.0,
+        gt=0,
+        le=120,
+        alias="BING_WEBMASTER_TIMEOUT_SECONDS",
+    )
 
     # Public MCP uses a separate bearer token from the internal REST key.
     mcp_access_token: str = Field(default="", alias="MCP_ACCESS_TOKEN")
