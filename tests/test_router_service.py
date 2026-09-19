@@ -247,6 +247,30 @@ def test_auto_search_skips_unconfigured_fallbacks(monkeypatch):
     assert [attempt.provider for attempt in response.provider_attempts] == ["brave"]
 
 
+def test_context7_low_relevance_results_fall_back_to_exa(monkeypatch):
+    service = RouterService(
+        Settings(
+            gateway_api_key="test",
+            context7_api_key="configured",
+            exa_api_key="configured",
+        )
+    )
+    service.providers["context7"] = FakeProvider(
+        [SearchResult(title=".NET dependency injection", url="https://context7.com/dotnet/di", snippet="services")]
+    )
+    expected = SearchResult(title="FastAPI dependencies", url="https://fastapi.tiangolo.com/tutorial/dependencies/", snippet="Depends")
+    service.providers["exa"] = FakeProvider([expected])
+    monkeypatch.setattr(RouterService, "_provider_order", lambda *args, **kwargs: ["context7", "exa"])
+
+    import asyncio
+
+    response = asyncio.run(service.search("FastAPI dependency injection API docs", provider="auto", max_results=1))
+
+    assert response.provider == "exa"
+    assert response.results == [expected]
+    assert [attempt.status for attempt in response.provider_attempts] == ["empty", "success"]
+
+
 def test_grok_cache_variant_changes_with_backend():
     openai_service = RouterService(
         Settings(gateway_api_key="test", grok_search_enabled=True, grok_backend="openai", grok_api_key="gk")

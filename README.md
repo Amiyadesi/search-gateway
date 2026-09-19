@@ -12,8 +12,9 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
 - `GET /api/search` routes a query to a configured web, documentation, code,
   encyclopedia, academic, or open-data provider.
 - Auto routing prefers Context7 for configured documentation/API queries, then
-  falls back within the same docs/general search path. Unconfigured fallback
-  providers are skipped to avoid predictable latency.
+  falls back on empty or low-relevance matches within the same docs/general
+  search path. Unconfigured fallback providers are skipped to avoid predictable
+  latency.
 - SerpJet can act as the final Google web-search fallback. Up to two server-side
   keys are tried without exposing either key to clients.
 - `POST /api/v1/evidence-search` runs a bounded multi-query/multi-source evidence

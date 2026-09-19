@@ -43,6 +43,22 @@ DOCS_PATTERN = re.compile(
     re.I,
 )
 CJK_PATTERN = re.compile(r"[\u3400-\u9fff]")
+ROUTING_STOPWORDS = {
+    "about",
+    "api",
+    "dependency",
+    "dependencies",
+    "docs",
+    "documentation",
+    "for",
+    "how",
+    "injection",
+    "official",
+    "reference",
+    "search",
+    "the",
+    "to",
+}
 
 
 class RouterService:
@@ -121,13 +137,15 @@ class RouterService:
                 attempts.append(
                     ProviderAttempt(
                         provider=current,
-                        status="cached" if response.cached else ("success" if response.results else "empty"),
+                        status="cached"
+                        if response.cached
+                        else ("success" if self._response_is_usable(query, current, response) else "empty"),
                         latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
                     )
                 )
-                if provider == "auto" and not response.results:
+                if provider == "auto" and not self._response_is_usable(query, current, response):
                     last_empty = response
-                    logger.warning("Provider {} 返回空结果，尝试下一个兜底", current)
+                    logger.warning("Provider {} 返回空或低相关结果，尝试下一个兜底", current)
                     continue
                 return response.model_copy(
                     update={
@@ -248,6 +266,24 @@ class RouterService:
             return order
         configured = [provider for provider in order if self.provider_configured(provider)]
         return configured or [chosen]
+
+    @staticmethod
+    def _response_is_usable(query: str, provider: str, response: SearchResponse) -> bool:
+        if not response.results:
+            return False
+        if provider != "context7":
+            return True
+        terms = {
+            term
+            for term in re.findall(r"[a-z0-9][a-z0-9.+#-]{2,}", query.lower())
+            if term not in ROUTING_STOPWORDS
+        }
+        if not terms:
+            return True
+        return any(
+            any(term in f"{item.title} {item.url} {item.snippet}".lower() for term in terms)
+            for item in response.results
+        )
 
     async def close(self) -> None:
         await self.cache.close()
