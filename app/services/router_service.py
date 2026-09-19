@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import time
 
 from app.config import Settings
 from app.providers.arxiv import ArxivProvider
@@ -26,7 +27,7 @@ from app.providers.wikidata import WikidataProvider
 from app.providers.wikipedia import WikipediaProvider
 from app.providers.zhihu import ZhihuProvider
 from app.schemas.common import SearchResult
-from app.schemas.search import SearchResponse
+from app.schemas.search import ProviderAttempt, SearchResponse
 from app.services.cache_service import CacheService
 from app.services.rerank_service import RerankService
 from app.utils.logging import logger
@@ -37,6 +38,10 @@ TECH_PATTERN = re.compile(
     re.I,
 )
 AGENT_PATTERN = re.compile(r"\b(agent|代理|智能体|实时|quick|fast|latest|today|news|当前|最新)\b", re.I)
+DOCS_PATTERN = re.compile(
+    r"\b(api|sdk|docs?|documentation|reference|library|react|next\.js|vue|python|prisma|langchain|openai|context7)\b|接口|文档|函数|参数|配置",
+    re.I,
+)
 CJK_PATTERN = re.compile(r"[\u3400-\u9fff]")
 
 
@@ -80,12 +85,14 @@ class RouterService:
             and self.settings.grok_search_auto_enabled
             and GrokProvider.configured_backend_ready(self.settings)
         )
-        if CJK_PATTERN.search(query) and self.provider_configured("zhihu"):
-            return "zhihu"
         if AGENT_PATTERN.search(query):
             if grok_auto_ready:
                 return "grok"
             return "tavily"
+        if DOCS_PATTERN.search(query) and self.provider_configured("context7"):
+            return "context7"
+        if CJK_PATTERN.search(query) and self.provider_configured("zhihu"):
+            return "zhihu"
         if TECH_PATTERN.search(query):
             return "exa"
         return "brave"
@@ -98,7 +105,7 @@ class RouterService:
             and self.settings.grok_search_auto_enabled
             and GrokProvider.configured_backend_ready(self.settings)
         )
-        provider_order = self._provider_order(
+        provider_order = self._configured_provider_order(
             chosen,
             allow_fallback=provider == "auto",
             grok_enabled=grok_auto_ready,
@@ -106,22 +113,49 @@ class RouterService:
 
         last_error: Exception | None = None
         last_empty: SearchResponse | None = None
+        attempts: list[ProviderAttempt] = []
         for current in provider_order:
+            started = time.perf_counter()
             try:
                 response = await self._search_with_provider(current, query, limit)
+                attempts.append(
+                    ProviderAttempt(
+                        provider=current,
+                        status="cached" if response.cached else ("success" if response.results else "empty"),
+                        latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
+                    )
+                )
                 if provider == "auto" and not response.results:
                     last_empty = response
                     logger.warning("Provider {} 返回空结果，尝试下一个兜底", current)
                     continue
-                return response
+                return response.model_copy(
+                    update={
+                        "fallback_used": len(attempts) > 1,
+                        "provider_attempts": attempts,
+                    }
+                )
             except Exception as exc:
                 last_error = exc
+                attempts.append(
+                    ProviderAttempt(
+                        provider=current,
+                        status="error",
+                        latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
+                        error_type=type(exc).__name__,
+                    )
+                )
                 if provider != "auto":
                     raise
                 logger.warning("Provider {} 失败，尝试下一个兜底: {}", current, exc)
 
         if last_empty:
-            return last_empty
+            return last_empty.model_copy(
+                update={
+                    "fallback_used": len(attempts) > 1,
+                    "provider_attempts": attempts,
+                }
+            )
         if last_error:
             raise last_error
         return await self._search_with_provider(chosen, query, limit)
@@ -195,14 +229,25 @@ class RouterService:
     def _provider_order(chosen: str, allow_fallback: bool, grok_enabled: bool = False) -> list[str]:
         if not allow_fallback:
             return [chosen]
-        order = [chosen]
-        fallback_names = ["brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"]
+        fallback_names = {
+            "context7": ["context7", "exa", "brave", "tavily", "tavily_hikari", "searxng", "serpjet"],
+            "grok": ["grok", "tavily", "brave", "exa", "tavily_hikari", "searxng", "serpjet"],
+            "tavily": ["tavily", "tavily_hikari", "brave", "exa", "searxng", "serpjet"],
+            "tavily_hikari": ["tavily_hikari", "tavily", "brave", "exa", "searxng", "serpjet"],
+            "exa": ["exa", "context7", "brave", "tavily", "tavily_hikari", "searxng", "serpjet"],
+            "searxng": ["searxng", "brave", "tavily", "tavily_hikari", "exa", "serpjet"],
+            "brave": ["brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"],
+        }.get(chosen, [chosen, "brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"])
         if grok_enabled:
-            fallback_names.insert(0, "grok")
-        for name in fallback_names:
-            if name not in order:
-                order.append(name)
-        return order
+            fallback_names = [fallback_names[0], "grok", *fallback_names[1:]]
+        return list(dict.fromkeys(fallback_names))
+
+    def _configured_provider_order(self, chosen: str, allow_fallback: bool, grok_enabled: bool) -> list[str]:
+        order = self._provider_order(chosen, allow_fallback, grok_enabled)
+        if not allow_fallback:
+            return order
+        configured = [provider for provider in order if self.provider_configured(provider)]
+        return configured or [chosen]
 
     async def close(self) -> None:
         await self.cache.close()

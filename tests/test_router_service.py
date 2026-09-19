@@ -19,6 +19,11 @@ def test_select_provider_tech_query_uses_exa():
     assert service.select_provider("FastAPI redis cache architecture") == "exa"
 
 
+def test_select_provider_docs_query_prefers_context7_when_configured():
+    service = RouterService(Settings(gateway_api_key="test", context7_api_key="configured"))
+    assert service.select_provider("FastAPI dependency injection API docs") == "context7"
+
+
 def test_select_provider_agent_query_uses_tavily():
     service = RouterService(Settings(gateway_api_key="test"))
     assert service.select_provider("latest agent framework news") == "tavily"
@@ -90,6 +95,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
     ]
     assert RouterService._provider_order("exa", allow_fallback=True) == [
         "exa",
+        "context7",
         "brave",
         "tavily",
         "tavily_hikari",
@@ -189,6 +195,9 @@ def test_auto_falls_back_when_provider_returns_empty_results(monkeypatch):
             grok_search_enabled=True,
             grok_search_auto_enabled=True,
             grok_api_key="gk",
+            grok_backend="groksearch",
+            groksearch_bridge_url="http://bridge:8010",
+            searxng_enabled=True,
         )
     )
     result = SearchResult(title="fallback", url="https://example.com", snippet="ok")
@@ -202,6 +211,9 @@ def test_auto_falls_back_when_provider_returns_empty_results(monkeypatch):
 
     assert response.provider == "searxng"
     assert response.results == [result]
+    assert response.fallback_used is True
+    assert [attempt.provider for attempt in response.provider_attempts] == ["grok", "searxng"]
+    assert [attempt.status for attempt in response.provider_attempts] == ["empty", "success"]
 
 
 def test_explicit_provider_keeps_empty_results(monkeypatch):
@@ -213,7 +225,26 @@ def test_explicit_provider_keeps_empty_results(monkeypatch):
 
     response = asyncio.run(service.search("agent news", provider="grok", max_results=1))
 
-    assert response == SearchResponse(success=True, provider="grok", query="agent news", cached=False, results=[])
+    assert response.success is True
+    assert response.provider == "grok"
+    assert response.results == []
+    assert response.fallback_used is False
+    assert [attempt.status for attempt in response.provider_attempts] == ["empty"]
+
+
+def test_auto_search_skips_unconfigured_fallbacks(monkeypatch):
+    service = RouterService(Settings(gateway_api_key="test", brave_api_key="configured"))
+    result = SearchResult(title="brave", url="https://example.com", snippet="ok")
+    service.providers["brave"] = FakeProvider([result])
+    service.providers["exa"] = FakeProvider([])
+    monkeypatch.setattr(RouterService, "_provider_order", lambda *args, **kwargs: ["exa", "brave", "tavily"])
+
+    import asyncio
+
+    response = asyncio.run(service.search("technical query", provider="auto", max_results=1))
+
+    assert response.provider == "brave"
+    assert [attempt.provider for attempt in response.provider_attempts] == ["brave"]
 
 
 def test_grok_cache_variant_changes_with_backend():
