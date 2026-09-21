@@ -29,6 +29,7 @@ still apply:
 | [Zhihu Global Search](https://developer.zhihu.com/docs?key=global_search) | Apply for an Access Secret | `ZHIHU_API_KEY`, `ZHIHU_TIMEOUT_SECONDS` | Fixed official endpoint; Chinese search evidence only |
 | [SerpJet](https://serpjet.io/docs.html) | Create one or two API keys; its documentation currently advertises 1,000 free searches per month | `SERPJET_API_KEYS`, `SERPJET_TIMEOUT_SECONDS` | Final Google-search fallback; keys never reach clients |
 | [Context7](https://context7.com/) | Obtain API access | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | Documentation-focused retrieval |
+| [AnySearch](https://anysearch.com/) | Optional; anonymous access has lower limits | `ANYSEARCH_ENABLED`, `ANYSEARCH_API_KEY`, `ANYSEARCH_API_KEYS`, `ANYSEARCH_API_URL` | General/vertical search and domain discovery |
 | Grok-compatible search | Use an authorized compatible endpoint | `GROK_*` | Can use the bundled bridge or configured upstreams |
 
 SerpJet accepts at most two comma-separated keys. The second key is attempted

@@ -55,6 +55,18 @@ failure returns HTTP 503 with `success: false` and `status: not_ready`.
 - Repository documentation describes how to operate a self-hosted deployment;
   it does not grant access to the Sayori production instance.
 
+## AnySearch
+
+`GET /api/anysearch/sub-domains?domain=finance&domain=security` discovers
+vertical capabilities. Use the returned tag and required parameters with
+`GET /api/search?provider=anysearch`; encode `params` as a JSON query value.
+`POST /api/anysearch/batch-search` accepts one to five query objects and runs
+them concurrently.
+
+`ANYSEARCH_API_KEY` and optional comma-separated `ANYSEARCH_API_KEYS` remain
+server-side. The gateway tries at most two unique keys and never returns them.
+Set `ANYSEARCH_ENABLED=true`; anonymous mode is available but has lower limits.
+
 ## Evidence v1
 
 When SerpJet is configured, the gateway sends its server-owned key only to

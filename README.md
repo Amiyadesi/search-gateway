@@ -15,6 +15,8 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
   falls back on empty or low-relevance matches within the same docs/general
   search path. Unconfigured fallback providers are skipped to avoid predictable
   latency.
+- AnySearch supports server-side key fallback, vertical tag/params search,
+  domain discovery, and bounded batch search.
 - SerpJet can act as the final Google web-search fallback. Up to two server-side
   keys are tried without exposing either key to clients.
 - `POST /api/v1/evidence-search` runs a bounded multi-query/multi-source evidence
@@ -148,7 +150,7 @@ Do not commit `.env`, Compose overrides, logs, or machine-specific SSH config.
   Internet Archive, and Common Crawl. GitHub and Stack Exchange also work with
   lower unauthenticated limits.
 - Free-plan or BYOK search sources include Brave Search API, Tavily, Exa,
-  SerpJet, Zhihu Global Search, Context7, and optional Grok-compatible entries.
+  AnySearch, SerpJet, Zhihu Global Search, Context7, and optional Grok-compatible entries.
 - Self-hosted paths include SearXNG, the bundled GrokSearch bridge, Firecrawl,
   and server-configured OpenAI-compatible answer, summary, rerank, or embedding
   endpoints. Ollama and a privately operated GPT4Free service can fit the
@@ -169,6 +171,8 @@ request examples. Free quotas change; provider pages remain authoritative.
 | `GET` | `/readyz` | Authenticated readiness probe for configured internal dependencies |
 | `GET` | `/api/health` | Authenticated provider and cache status |
 | `GET` | `/api/search` | Search with an optional `provider` selector |
+| `GET` | `/api/anysearch/sub-domains` | Discover AnySearch vertical capabilities |
+| `POST` | `/api/anysearch/batch-search` | Run one to five AnySearch searches in parallel |
 | `POST` | `/api/v1/evidence-search` | Bounded, fused, provenance-rich search evidence |
 | `POST` | `/api/v1/answer-snapshots` | Zero-persistence API answer observations |
 | `POST` | `/api/v1/answer-models` | Sanitized request-scoped model IDs |
@@ -266,8 +270,9 @@ On the remote machine, `MCP_GATEWAY_ENV_FILE` can point to a deployment-local
 values belong in local MCP configuration or server environment, never in this
 repository.
 
-The MCP adapter retains all existing tools and adds `ai_evidence_search` and
-`ai_answer_snapshot`. The latter uses the server-configured answer credential;
+The MCP adapter retains all existing tools and adds `ai_evidence_search`,
+`ai_answer_snapshot`, `ai_anysearch_sub_domains`, and
+`ai_anysearch_batch_search`. `ai_answer_snapshot` uses the server-configured answer credential;
 the MCP schema does not accept or transport a user key. `ai_search` and
 `ai_evidence_search` accept `zhihu` as an explicit provider only when the
 server-side Access Secret is configured; the adapter never receives that

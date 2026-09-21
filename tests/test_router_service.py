@@ -29,6 +29,41 @@ def test_select_provider_agent_query_uses_tavily():
     assert service.select_provider("latest agent framework news") == "tavily"
 
 
+def test_select_provider_vertical_query_prefers_anysearch_when_enabled():
+    service = RouterService(Settings(gateway_api_key="test", anysearch_enabled=True))
+
+    assert service.select_provider("AAPL stock quote") == "anysearch"
+
+
+def test_anysearch_options_reach_provider(monkeypatch):
+    service = RouterService(Settings(gateway_api_key="test", anysearch_enabled=True))
+    calls = []
+
+    class FakeAnySearch:
+        async def search(self, query, max_results, **options):
+            calls.append((query, max_results, options))
+            return [SearchResult(title="AAPL", url="https://example.com/aapl", snippet="quote")]
+
+    service.providers["anysearch"] = FakeAnySearch()
+
+    import asyncio
+
+    response = asyncio.run(
+        service.search(
+            "AAPL",
+            provider="anysearch",
+            max_results=3,
+            provider_options={
+                "tag": "finance.quote",
+                "params": {"symbol": "AAPL"},
+            },
+        )
+    )
+
+    assert response.provider == "anysearch"
+    assert calls == [("AAPL", 3, {"tag": "finance.quote", "params": {"symbol": "AAPL"}})]
+
+
 def test_select_provider_agent_query_uses_grok_when_auto_enabled():
     service = RouterService(Settings(gateway_api_key="test", grok_search_enabled=True, grok_api_key="gk"))
     assert service.select_provider("latest agent framework news") == "tavily"
@@ -84,6 +119,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily_hikari",
         "exa",
         "serpjet",
+        "anysearch",
     ]
     assert RouterService._provider_order("brave", allow_fallback=True) == [
         "brave",
@@ -92,6 +128,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "exa",
         "searxng",
         "serpjet",
+        "anysearch",
     ]
     assert RouterService._provider_order("exa", allow_fallback=True) == [
         "exa",
@@ -101,6 +138,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily_hikari",
         "searxng",
         "serpjet",
+        "anysearch",
     ]
     assert RouterService._provider_order("searxng", allow_fallback=True, grok_enabled=True) == [
         "searxng",
@@ -110,6 +148,7 @@ def test_auto_fallback_order_starts_with_selected_provider():
         "tavily_hikari",
         "exa",
         "serpjet",
+        "anysearch",
     ]
 
 
@@ -306,7 +345,7 @@ def test_serpjet_is_configured_as_last_auto_fallback_and_optional_evidence_sourc
     )
 
     assert service.provider_configured("serpjet") is True
-    assert RouterService._provider_order("brave", allow_fallback=True)[-1] == "serpjet"
+    assert RouterService._provider_order("brave", allow_fallback=True)[-2:] == ["serpjet", "anysearch"]
     assert service.evidence_provider_candidates("FastAPI evidence") == ["serpjet"]
 
 

@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.config import get_settings
-from app.routes import bing_webmaster, evidence, extract, health, mcp, oauth, ipinfo, screenshot, search, summary
+from app.routes import anysearch, bing_webmaster, evidence, extract, health, mcp, oauth, ipinfo, screenshot, search, summary
 from app.utils.auth import require_api_key
 from app.utils.errors import GatewayError
 from app.utils.logging import configure_logging, logger
@@ -40,6 +40,7 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(health.api_router, prefix="/api")
 app.include_router(search.router, prefix="/api")
+app.include_router(anysearch.router, prefix="/api")
 app.include_router(extract.router, prefix="/api")
 app.include_router(screenshot.router, prefix="/api")
 app.include_router(summary.router, prefix="/api")

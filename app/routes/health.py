@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Response, status
 
 from app.config import Settings, get_settings
 from app.providers.grok import GrokProvider
+from app.providers.anysearch import AnySearchProvider
 from app.providers.serpjet import SerpJetProvider
 from app.providers.tavily import TavilyProvider
 from app.schemas.health import HealthResponse, ProviderHealth, ReadinessResponse
@@ -49,6 +50,10 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
         ),
         "tavily_hikari": ProviderHealth(configured=bool(settings.tavily_hikari_token and settings.tavily_hikari_url)),
         "exa": ProviderHealth(configured=bool(settings.exa_api_key)),
+        "anysearch": ProviderHealth(
+            configured=bool(settings.anysearch_enabled and settings.anysearch_api_url),
+            upstreams=AnySearchProvider.configured_upstream_count(settings),
+        ),
         "zhihu": ProviderHealth(configured=bool(settings.zhihu_api_key)),
         "context7": ProviderHealth(configured=bool(settings.context7_api_key and settings.context7_base_url)),
         "duckduckgo": ProviderHealth(configured=bool(settings.duckduckgo_base_url)),

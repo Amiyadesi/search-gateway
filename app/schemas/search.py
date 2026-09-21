@@ -13,6 +13,7 @@ SEARCH_PROVIDERS = [
     "tavily",
     "tavily_hikari",
     "exa",
+    "anysearch",
     "zhihu",
     "context7",
     "duckduckgo",

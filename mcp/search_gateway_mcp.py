@@ -25,6 +25,7 @@ SEARCH_PROVIDERS = [
     "tavily",
     "tavily_hikari",
     "exa",
+    "anysearch",
     "zhihu",
     "context7",
     "duckduckgo",
@@ -365,8 +366,36 @@ def tool_definitions() -> list[dict[str, Any]]:
                         "default": "auto",
                     },
                     "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5},
+                    "tag": {"type": "string", "description": "AnySearch 垂直 tag，例如 finance.quote"},
+                    "domain": {"type": "string", "description": "AnySearch domain，例如 finance"},
+                    "sub_domain": {"type": "string", "description": "AnySearch sub_domain，例如 finance.quote"},
+                    "params": {"type": "object", "description": "AnySearch 垂直搜索参数"},
+                    "zone": {"type": "string", "description": "AnySearch 区域偏好：cn 或 intl"},
+                    "language": {"type": "string", "description": "AnySearch 结果语言偏好"},
                 },
                 "required": ["query"],
+            },
+        },
+        {
+            "name": "ai_anysearch_sub_domains",
+            "description": "查询 AnySearch 垂直领域能力；执行垂直搜索前先调用，最多 5 个 domain。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "domains": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 5},
+                },
+                "required": ["domains"],
+            },
+        },
+        {
+            "name": "ai_anysearch_batch_search",
+            "description": "并行执行 1 到 5 个 AnySearch 查询；每项可带 tag、params、zone、language、max_results。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "queries": {"type": "array", "items": {"type": "object"}, "minItems": 1, "maxItems": 5},
+                },
+                "required": ["queries"],
             },
         },
         {
@@ -569,9 +598,42 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "ai_search":
         query = require_text_arg(args, "query")
         provider = args.get("provider", "auto")
+        if provider == "auto" and any(args.get(key) is not None for key in ("tag", "domain", "sub_domain", "params", "zone", "language")):
+            provider = "anysearch"
         max_results = clamp_int(args.get("max_results", 5), 1, 10)
-        path = "/api/search?" + parse_query({"q": query, "provider": provider, "max_results": max_results})
+        query_params: dict[str, Any] = {"q": query, "provider": provider, "max_results": max_results}
+        for key in ("tag", "domain", "sub_domain", "zone", "language"):
+            if isinstance(args.get(key), str) and args[key].strip():
+                query_params[key] = args[key].strip()
+        if isinstance(args.get("params"), dict):
+            query_params["params"] = json.dumps(args["params"], ensure_ascii=False, separators=(",", ":"))
+        path = "/api/search?" + parse_query(query_params)
         result = call_gateway({"method": "GET", "path": path, "timeout": 90}, timeout=120)
+    elif name == "ai_anysearch_sub_domains":
+        domains = require_text_list_arg(args, "domains", maximum=5)
+        result = call_gateway(
+            {"method": "GET", "path": "/api/anysearch/sub-domains?" + parse_query({"domain": domains}), "timeout": 60},
+            timeout=90,
+        )
+    elif name == "ai_anysearch_batch_search":
+        raw_queries = args.get("queries")
+        if not isinstance(raw_queries, list) or not 1 <= len(raw_queries) <= 5:
+            raise ValueError("AnySearch batch queries 必须是 1 到 5 项")
+        queries: list[dict[str, Any]] = []
+        for item in raw_queries:
+            if not isinstance(item, dict) or not isinstance(item.get("query"), str) or not item["query"].strip():
+                raise ValueError("AnySearch batch 每项必须包含 query")
+            query_item = {"query": item["query"].strip(), "max_results": clamp_int(item.get("max_results", 10), 1, 10)}
+            for key in ("tag", "domain", "sub_domain", "zone", "language"):
+                if isinstance(item.get(key), str) and item[key].strip():
+                    query_item[key] = item[key].strip()
+            if isinstance(item.get("params"), dict):
+                query_item["params"] = item["params"]
+            queries.append(query_item)
+        result = call_gateway(
+            {"method": "POST", "path": "/api/anysearch/batch-search", "body": {"queries": queries}, "timeout": 120},
+            timeout=150,
+        )
     elif name == "ai_evidence_search":
         queries = require_text_list_arg(args, "queries", maximum=3)
         providers = normalize_provider_list(args.get("providers", ["auto"]))
@@ -755,7 +817,7 @@ def clamp_int(value: Any, minimum: int, maximum: int) -> int:
 def parse_query(params: dict[str, Any]) -> str:
     from urllib.parse import urlencode
 
-    return urlencode(params)
+    return urlencode(params, doseq=True)
 
 
 class StdioTransport:

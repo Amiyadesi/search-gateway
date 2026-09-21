@@ -5,6 +5,7 @@ import time
 
 from app.config import Settings
 from app.providers.arxiv import ArxivProvider
+from app.providers.anysearch import AnySearchProvider
 from app.providers.brave import BraveProvider
 from app.providers.common_crawl import CommonCrawlProvider
 from app.providers.context7 import Context7Provider
@@ -42,6 +43,11 @@ DOCS_PATTERN = re.compile(
     r"\b(api|sdk|docs?|documentation|reference|library|react|next\.js|vue|python|prisma|langchain|openai|context7)\b|接口|文档|函数|参数|配置",
     re.I,
 )
+VERTICAL_PATTERN = re.compile(
+    r"\b(cve|doi|isbn|iata|stock|stocks|ticker|earnings|patent|nvd|sec filing|10-k|10-q|repository|code search)\b|"
+    r"股票|基金|财报|漏洞|法律|法规|论文|学术|医疗|航班|专利|代码库|开源仓库",
+    re.I,
+)
 CJK_PATTERN = re.compile(r"[\u3400-\u9fff]")
 ROUTING_STOPWORDS = {
     "about",
@@ -74,6 +80,7 @@ class RouterService:
             "tavily": TavilyProvider(settings),
             "tavily_hikari": TavilyHikariProvider(settings),
             "exa": ExaProvider(settings),
+            "anysearch": AnySearchProvider(settings),
             "zhihu": ZhihuProvider(settings),
             "context7": Context7Provider(settings),
             "duckduckgo": DuckDuckGoProvider(settings),
@@ -101,6 +108,8 @@ class RouterService:
             and self.settings.grok_search_auto_enabled
             and GrokProvider.configured_backend_ready(self.settings)
         )
+        if self.provider_configured("anysearch") and VERTICAL_PATTERN.search(query):
+            return "anysearch"
         if AGENT_PATTERN.search(query):
             if grok_auto_ready:
                 return "grok"
@@ -113,7 +122,14 @@ class RouterService:
             return "exa"
         return "brave"
 
-    async def search(self, query: str, provider: str = "auto", max_results: int | None = None) -> SearchResponse:
+    async def search(
+        self,
+        query: str,
+        provider: str = "auto",
+        max_results: int | None = None,
+        *,
+        provider_options: dict[str, object] | None = None,
+    ) -> SearchResponse:
         chosen = self.select_provider(query, provider)
         limit = max_results or self.settings.max_search_results
         grok_auto_ready = bool(
@@ -133,7 +149,7 @@ class RouterService:
         for current in provider_order:
             started = time.perf_counter()
             try:
-                response = await self._search_with_provider(current, query, limit)
+                response = await self._search_with_provider(current, query, limit, provider_options)
                 attempts.append(
                     ProviderAttempt(
                         provider=current,
@@ -178,8 +194,20 @@ class RouterService:
             raise last_error
         return await self._search_with_provider(chosen, query, limit)
 
-    async def _search_with_provider(self, provider: str, query: str, limit: int) -> SearchResponse:
-        return await self.search_provider(query, provider, limit, apply_rerank=True)
+    async def _search_with_provider(
+        self,
+        provider: str,
+        query: str,
+        limit: int,
+        provider_options: dict[str, object] | None = None,
+    ) -> SearchResponse:
+        return await self.search_provider(
+            query,
+            provider,
+            limit,
+            apply_rerank=True,
+            provider_options=provider_options,
+        )
 
     async def search_provider(
         self,
@@ -188,8 +216,11 @@ class RouterService:
         limit: int,
         *,
         apply_rerank: bool = True,
+        provider_options: dict[str, object] | None = None,
     ) -> SearchResponse:
         variant = self._cache_variant(provider) if apply_rerank else "rerank:raw"
+        if provider == "anysearch" and provider_options:
+            variant += "|options:" + json.dumps(provider_options, sort_keys=True, ensure_ascii=False)
         cache_key = self._cache_key(provider, query, limit, variant)
 
         cached = await self.cache.get_json(cache_key)
@@ -197,7 +228,10 @@ class RouterService:
             results = [SearchResult(**item) for item in cached]
             return SearchResponse(success=True, provider=provider, query=query, cached=True, results=results)
 
-        results = await self.providers[provider].search(query, limit)
+        if provider == "anysearch" and provider_options:
+            results = await self.providers[provider].search(query, limit, **provider_options)
+        else:
+            results = await self.providers[provider].search(query, limit)
         if apply_rerank:
             results = await self.reranker.rerank(query, results)
         await self.cache.set_json(cache_key, [item.model_dump(mode="json") for item in results])
@@ -222,6 +256,7 @@ class RouterService:
             "tavily": bool(TavilyProvider.configured_api_keys(self.settings)),
             "tavily_hikari": bool(self.settings.tavily_hikari_token and self.settings.tavily_hikari_url),
             "exa": bool(self.settings.exa_api_key),
+            "anysearch": bool(self.settings.anysearch_enabled and self.settings.anysearch_api_url),
             "zhihu": bool(self.settings.zhihu_api_key),
             "context7": bool(self.settings.context7_api_key and self.settings.context7_base_url),
             "duckduckgo": bool(self.settings.duckduckgo_base_url),
@@ -248,14 +283,14 @@ class RouterService:
         if not allow_fallback:
             return [chosen]
         fallback_names = {
-            "context7": ["context7", "exa", "brave", "tavily", "tavily_hikari", "searxng", "serpjet"],
-            "grok": ["grok", "tavily", "brave", "exa", "tavily_hikari", "searxng", "serpjet"],
-            "tavily": ["tavily", "tavily_hikari", "brave", "exa", "searxng", "serpjet"],
-            "tavily_hikari": ["tavily_hikari", "tavily", "brave", "exa", "searxng", "serpjet"],
-            "exa": ["exa", "context7", "brave", "tavily", "tavily_hikari", "searxng", "serpjet"],
-            "searxng": ["searxng", "brave", "tavily", "tavily_hikari", "exa", "serpjet"],
-            "brave": ["brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"],
-        }.get(chosen, [chosen, "brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet"])
+            "context7": ["context7", "exa", "brave", "tavily", "tavily_hikari", "searxng", "serpjet", "anysearch"],
+            "grok": ["grok", "tavily", "brave", "exa", "tavily_hikari", "searxng", "serpjet", "anysearch"],
+            "tavily": ["tavily", "tavily_hikari", "brave", "exa", "searxng", "serpjet", "anysearch"],
+            "tavily_hikari": ["tavily_hikari", "tavily", "brave", "exa", "searxng", "serpjet", "anysearch"],
+            "exa": ["exa", "context7", "brave", "tavily", "tavily_hikari", "searxng", "serpjet", "anysearch"],
+            "searxng": ["searxng", "brave", "tavily", "tavily_hikari", "exa", "serpjet", "anysearch"],
+            "brave": ["brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet", "anysearch"],
+        }.get(chosen, [chosen, "brave", "tavily", "tavily_hikari", "exa", "searxng", "serpjet", "anysearch"])
         if grok_enabled:
             fallback_names = [fallback_names[0], "grok", *fallback_names[1:]]
         return list(dict.fromkeys(fallback_names))
