@@ -16,6 +16,7 @@ SEARCH_PROVIDERS = [
     "anysearch",
     "zhihu",
     "context7",
+    "context_dev",
     "duckduckgo",
     "github",
     "stackexchange",

@@ -5,6 +5,7 @@ from app.config import Settings
 from app.schemas.common import SearchResult
 from app.utils.errors import GatewayError
 from app.utils.http import build_client, timed_call
+from app.utils.logging import logger
 
 
 LIBRARY_ID_PATTERN = re.compile(r"(?<!\S)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.@/-]+")
@@ -17,18 +18,19 @@ class Context7Provider:
         self.settings = settings
 
     async def search(self, query: str, max_results: int) -> list[SearchResult]:
-        if not self.settings.context7_api_key:
+        api_keys = self.configured_api_keys(self.settings)
+        if not api_keys:
             raise GatewayError("Context7 API Key 未配置", status_code=500)
         if not self.settings.context7_base_url:
             raise GatewayError("Context7 Base URL 未配置", status_code=500)
 
-        async def request() -> list[SearchResult]:
+        async def request(api_key: str) -> list[SearchResult]:
             async with build_client(self.settings, timeout=self.settings.context7_timeout_seconds) as client:
                 library = self._library_from_explicit_id(query)
                 if library is None:
                     search_resp = await client.get(
                         f"{self.settings.context7_base_url}/v2/libs/search",
-                        headers=self._headers(),
+                        headers=self._headers(api_key),
                         params={
                             "libraryName": self._library_name(query),
                             "query": query,
@@ -43,7 +45,7 @@ class Context7Provider:
 
                 context_resp = await client.get(
                     f"{self.settings.context7_base_url}/v2/context",
-                    headers=self._headers(),
+                    headers=self._headers(api_key),
                     params={
                         "libraryId": library["id"],
                         "query": query,
@@ -56,7 +58,7 @@ class Context7Provider:
                         library["id"] = redirected
                         context_resp = await client.get(
                             f"{self.settings.context7_base_url}/v2/context",
-                            headers=self._headers(),
+                            headers=self._headers(api_key),
                             params={
                                 "libraryId": library["id"],
                                 "query": query,
@@ -69,7 +71,24 @@ class Context7Provider:
                     return results
                 return self._results_from_libraries([library], max_results)
 
-        return await timed_call("Context7", request)
+        last_error: GatewayError | None = None
+        for index, api_key in enumerate(api_keys, start=1):
+            try:
+                return await timed_call(
+                    f"Context7[{index}]",
+                    lambda api_key=api_key: request(api_key),
+                )
+            except GatewayError as exc:
+                last_error = exc
+                logger.warning("Context7 upstream {} 调用失败: {}", index, exc.message)
+
+        if last_error:
+            raise GatewayError(
+                "Context7 所有 upstream 调用失败",
+                status_code=last_error.status_code,
+                detail=last_error.detail,
+            ) from last_error
+        return []
 
     @staticmethod
     def _redirected_library(data: Any) -> str:
@@ -85,11 +104,24 @@ class Context7Provider:
                 return match.group(0).rstrip(".,;:)")
         return ""
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, api_key: str) -> dict[str, str]:
         return {
-            "Authorization": f"Bearer {self.settings.context7_api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Accept": "application/json",
         }
+
+    @staticmethod
+    def configured_api_keys(settings: Settings) -> list[str]:
+        keys: list[str] = []
+        for raw in [settings.context7_api_key, *settings.context7_api_keys.split(",")]:
+            key = raw.strip()
+            if key and key not in keys:
+                keys.append(key)
+        return keys
+
+    @classmethod
+    def configured_upstream_count(cls, settings: Settings) -> int:
+        return len(cls.configured_api_keys(settings))
 
     @staticmethod
     def _library_from_explicit_id(query: str) -> dict[str, str] | None:

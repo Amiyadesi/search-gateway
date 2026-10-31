@@ -110,6 +110,27 @@ def test_mcp_ssh_target_requires_explicit_host(monkeypatch):
         adapter.build_ssh_command("remote_gateway_call.py")
 
 
+def test_persistent_ssh_connectivity_failure_does_not_repeat_single_ssh(monkeypatch):
+    adapter = load_adapter()
+    monkeypatch.setenv("MCP_SEARCH_GATEWAY_PERSISTENT_SSH", "true")
+
+    def fail_persistent(*args, **kwargs):
+        raise adapter.RemoteSessionError("Connection timed out during banner exchange")
+
+    def unexpected_single_ssh(*args, **kwargs):
+        raise AssertionError("single SSH fallback must not repeat a connectivity failure")
+
+    monkeypatch.setattr(adapter.REMOTE_SESSION, "call", fail_persistent)
+    monkeypatch.setattr(adapter, "call_gateway_once", unexpected_single_ssh)
+
+    result = adapter.call_gateway({"path": "/health"}, timeout=1)
+
+    assert result["ok"] is False
+    assert result["status"] == 0
+    assert result["error"] == "Connection timed out during banner exchange"
+    assert result["persistent_error"] == result["error"]
+
+
 def test_mcp_stdio_framed_tools_do_not_close_transport():
     """真实启动 adapter：初始化、列工具、参数错误都必须保持 JSON-RPC 响应。"""
     script = Path(__file__).resolve().parents[1] / "mcp" / "search_gateway_mcp.py"
@@ -172,6 +193,7 @@ def test_mcp_stdio_framed_tools_do_not_close_transport():
             "internet_archive",
             "common_crawl",
             "zhihu",
+            "context_dev",
             "serpjet",
         } <= set(
             search_tool["inputSchema"]["properties"]["provider"]["enum"]

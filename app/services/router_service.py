@@ -8,6 +8,7 @@ from app.providers.arxiv import ArxivProvider
 from app.providers.anysearch import AnySearchProvider
 from app.providers.brave import BraveProvider
 from app.providers.common_crawl import CommonCrawlProvider
+from app.providers.context_dev import ContextDevProvider
 from app.providers.context7 import Context7Provider
 from app.providers.crossref import CrossrefProvider
 from app.providers.duckduckgo import DuckDuckGoProvider
@@ -83,6 +84,7 @@ class RouterService:
             "anysearch": AnySearchProvider(settings),
             "zhihu": ZhihuProvider(settings),
             "context7": Context7Provider(settings),
+            "context_dev": ContextDevProvider(settings),
             "duckduckgo": DuckDuckGoProvider(settings),
             "github": GitHubProvider(settings),
             "stackexchange": StackExchangeProvider(settings),
@@ -252,13 +254,14 @@ class RouterService:
     def provider_configured(self, provider: str) -> bool:
         return {
             "searxng": bool(self.settings.searxng_enabled and self.settings.searxng_base_url),
-            "brave": bool(self.settings.brave_api_key),
+            "brave": bool(BraveProvider.configured_api_keys(self.settings)),
             "tavily": bool(TavilyProvider.configured_api_keys(self.settings)),
             "tavily_hikari": bool(self.settings.tavily_hikari_token and self.settings.tavily_hikari_url),
-            "exa": bool(self.settings.exa_api_key),
+            "exa": bool(ExaProvider.configured_api_keys(self.settings)),
             "anysearch": bool(self.settings.anysearch_enabled and self.settings.anysearch_api_url),
             "zhihu": bool(self.settings.zhihu_api_key),
-            "context7": bool(self.settings.context7_api_key and self.settings.context7_base_url),
+            "context7": bool(Context7Provider.configured_api_keys(self.settings) and self.settings.context7_base_url),
+            "context_dev": bool(self.settings.context_dev_api_key),
             "duckduckgo": bool(self.settings.duckduckgo_base_url),
             "github": bool(self.settings.github_search_base_url),
             "stackexchange": bool(self.settings.stackexchange_base_url and self.settings.stackexchange_site),

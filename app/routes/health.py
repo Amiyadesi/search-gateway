@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, Response, status
 
 from app.config import Settings, get_settings
+from app.providers.brave import BraveProvider
+from app.providers.context7 import Context7Provider
+from app.providers.exa import ExaProvider
 from app.providers.grok import GrokProvider
 from app.providers.anysearch import AnySearchProvider
 from app.providers.serpjet import SerpJetProvider
@@ -43,19 +46,29 @@ async def health(_: None = Depends(require_api_key), settings: Settings = Depend
 
     providers = {
         "searxng": ProviderHealth(configured=bool(settings.searxng_enabled and settings.searxng_base_url)),
-        "brave": ProviderHealth(configured=bool(settings.brave_api_key)),
+        "brave": ProviderHealth(
+            configured=bool(BraveProvider.configured_api_keys(settings)),
+            upstreams=BraveProvider.configured_upstream_count(settings),
+        ),
         "tavily": ProviderHealth(
             configured=bool(TavilyProvider.configured_api_keys(settings)),
             upstreams=TavilyProvider.configured_upstream_count(settings),
         ),
         "tavily_hikari": ProviderHealth(configured=bool(settings.tavily_hikari_token and settings.tavily_hikari_url)),
-        "exa": ProviderHealth(configured=bool(settings.exa_api_key)),
+        "exa": ProviderHealth(
+            configured=bool(ExaProvider.configured_api_keys(settings)),
+            upstreams=ExaProvider.configured_upstream_count(settings),
+        ),
         "anysearch": ProviderHealth(
             configured=bool(settings.anysearch_enabled and settings.anysearch_api_url),
             upstreams=AnySearchProvider.configured_upstream_count(settings),
         ),
         "zhihu": ProviderHealth(configured=bool(settings.zhihu_api_key)),
-        "context7": ProviderHealth(configured=bool(settings.context7_api_key and settings.context7_base_url)),
+        "context7": ProviderHealth(
+            configured=bool(Context7Provider.configured_api_keys(settings) and settings.context7_base_url),
+            upstreams=Context7Provider.configured_upstream_count(settings),
+        ),
+        "context_dev": ProviderHealth(configured=bool(settings.context_dev_api_key)),
         "duckduckgo": ProviderHealth(configured=bool(settings.duckduckgo_base_url)),
         "github": ProviderHealth(configured=bool(settings.github_search_base_url)),
         "stackexchange": ProviderHealth(configured=bool(settings.stackexchange_base_url and settings.stackexchange_site)),

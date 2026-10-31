@@ -28,6 +28,7 @@ SEARCH_PROVIDERS = [
     "anysearch",
     "zhihu",
     "context7",
+    "context_dev",
     "duckduckgo",
     "github",
     "stackexchange",
@@ -57,10 +58,24 @@ SCREENSHOT_PROVIDERS = [
     "hqapi",
 ]
 SCREENSHOT_MODES = ["auto", "never", "force"]
+SSH_CONNECTIVITY_MARKERS = (
+    "connection timed out",
+    "timed out during banner exchange",
+    "connection refused",
+    "could not resolve hostname",
+    "no route to host",
+    "network is unreachable",
+    "unknown port 65535",
+)
 
 
 class RemoteSessionError(RuntimeError):
     """持久 SSH worker 不可用时抛出，外层会回落到单次 SSH 调用。"""
+
+
+def is_ssh_connectivity_error(message: str) -> bool:
+    normalized = message.lower()
+    return any(marker in normalized for marker in SSH_CONNECTIVITY_MARKERS)
 
 
 def get_ssh_host() -> str:
@@ -237,6 +252,14 @@ def call_gateway(payload: dict[str, Any], timeout: int = 180) -> dict[str, Any]:
         except RemoteSessionError as exc:
             # 远端 worker 尚未部署或连接被重置时，回落到旧的单次 SSH 调用。
             persistent_error = str(exc)
+            if is_ssh_connectivity_error(persistent_error):
+                # 网络层已失败；再次建立单次 SSH 只会重复等待，不能修复同一断链。
+                return {
+                    "ok": False,
+                    "status": 0,
+                    "error": persistent_error,
+                    "persistent_error": persistent_error,
+                }
 
     result = call_gateway_once(payload, timeout=timeout)
     if persistent_error and not result.get("ok"):

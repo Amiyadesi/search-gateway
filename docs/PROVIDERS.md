@@ -23,12 +23,13 @@ still apply:
 
 | Service | Obtain access | Environment variables | Boundary |
 | --- | --- | --- | --- |
-| [Brave Search API](https://brave.com/search/api/) | Create an account and API subscription | `BRAVE_API_KEY` | Query text is sent to Brave |
+| [Brave Search API](https://brave.com/search/api/) | Create an account and API subscription | `BRAVE_API_KEY`, `BRAVE_API_KEYS` | Query text is sent to Brave |
 | [Tavily](https://tavily.com/) | Create an API key | `TAVILY_API_KEYS`, `TAVILY_API_URL` | Supports multiple server-side keys; URL defaults to the official API |
-| [Exa](https://exa.ai/) | Create an API key | `EXA_API_KEY`, `EXA_API_URL` | Query text is sent to Exa; URL defaults to the official API |
+| [Exa](https://exa.ai/) | Create an API key | `EXA_API_KEY`, `EXA_API_KEYS`, `EXA_API_URL` | Query text is sent to Exa; URL defaults to the official API |
 | [Zhihu Global Search](https://developer.zhihu.com/docs?key=global_search) | Apply for an Access Secret | `ZHIHU_API_KEY`, `ZHIHU_TIMEOUT_SECONDS` | Fixed official endpoint; Chinese search evidence only |
 | [SerpJet](https://serpjet.io/docs.html) | Create one or two API keys; its documentation currently advertises 1,000 free searches per month | `SERPJET_API_KEYS`, `SERPJET_TIMEOUT_SECONDS` | Final Google-search fallback; keys never reach clients |
-| [Context7](https://context7.com/) | Obtain API access | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | Documentation-focused retrieval |
+| [Context7](https://context7.com/) | Obtain API access | `CONTEXT7_API_KEY`, `CONTEXT7_API_KEYS`, `CONTEXT7_BASE_URL` | Documentation-focused retrieval |
+| [Context.dev](https://docs.context.dev/api-reference/web-scraping/search) | Create an API key | `CONTEXT_DEV_API_KEY` | Web search; queries are sent to Context.dev |
 | [AnySearch](https://anysearch.com/) | Optional; anonymous access has lower limits | `ANYSEARCH_ENABLED`, `ANYSEARCH_API_KEY`, `ANYSEARCH_API_KEYS`, `ANYSEARCH_API_URL` | General/vertical search and domain discovery |
 | Grok-compatible search | Use an authorized compatible endpoint | `GROK_*` | Can use the bundled bridge or configured upstreams |
 
@@ -36,6 +37,16 @@ SerpJet accepts at most two comma-separated keys. The second key is attempted
 only after an authentication, quota, rate-limit, timeout, network, or upstream
 failure. Each key is sent only in the fixed upstream request's `X-API-KEY`
 header. Do not commit either key.
+
+Brave, Exa, and Context7 accept comma-separated backup keys in their plural
+environment variables. The legacy singular key is tried first; backup keys are
+tried in order after a provider failure. Health reports only the configured
+pool size, never key values.
+
+Context.dev is available only through an explicit `provider=context_dev`
+request. The gateway requests the minimum 10 results required by its API and
+returns up to the caller's requested limit; the upstream charges from 1 credit
+per 10 results. It is excluded from automatic routing and fallback.
 
 ## Self-hosted and OpenAI-compatible services
 
