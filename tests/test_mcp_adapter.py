@@ -84,6 +84,72 @@ def test_mcp_tool_argument_error_stays_json_rpc_error():
     assert "缺少必要字符串参数" in response["error"]["message"]
 
 
+def test_mcp_auto_search_does_not_route_anysearch_options(monkeypatch):
+    adapter = load_adapter()
+    calls = []
+
+    def fake_call_gateway(payload, timeout=180):
+        calls.append(payload)
+        return {"ok": True, "data": {"success": True}}
+
+    monkeypatch.setattr(adapter, "call_gateway", fake_call_gateway)
+
+    adapter.handle_tool_call(
+        "ai_search",
+        {
+            "query": "FastAPI latest release",
+            "provider": "auto",
+            "zone": "intl",
+            "language": "en",
+            "tag": "general.web",
+            "params": {"freshness": "day"},
+        },
+    )
+
+    from urllib.parse import parse_qs, urlparse
+
+    query = parse_qs(urlparse(calls[0]["path"]).query)
+    assert query["provider"] == ["auto"]
+    assert "zone" not in query
+    assert "language" not in query
+    assert "tag" not in query
+    assert "params" not in query
+
+
+def test_mcp_explicit_anysearch_preserves_vertical_options(monkeypatch):
+    adapter = load_adapter()
+    calls = []
+
+    def fake_call_gateway(payload, timeout=180):
+        calls.append(payload)
+        return {"ok": True, "data": {"success": True}}
+
+    monkeypatch.setattr(adapter, "call_gateway", fake_call_gateway)
+
+    adapter.handle_tool_call(
+        "ai_search",
+        {
+            "query": "AAPL",
+            "provider": "anysearch",
+            "tag": "finance.quote",
+            "domain": "finance",
+            "zone": "intl",
+            "language": "en",
+            "params": {"symbol": "AAPL"},
+        },
+    )
+
+    from urllib.parse import parse_qs, urlparse
+
+    query = parse_qs(urlparse(calls[0]["path"]).query)
+    assert query["provider"] == ["anysearch"]
+    assert query["tag"] == ["finance.quote"]
+    assert query["domain"] == ["finance"]
+    assert query["zone"] == ["intl"]
+    assert query["language"] == ["en"]
+    assert query["params"] == ['{"symbol":"AAPL"}']
+
+
 def test_parse_remote_json_ignores_ssh_banner_lines():
     adapter = load_adapter()
     parsed = adapter.parse_remote_json('Welcome\n{"ok": true, "status": 200, "data": {"success": true}}\n')

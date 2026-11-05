@@ -60,6 +60,8 @@ failure returns HTTP 503 with `success: false` and `status: not_ready`.
 `GET /api/anysearch/sub-domains?domain=finance&domain=security` discovers
 vertical capabilities. Use the returned tag and required parameters with
 `GET /api/search?provider=anysearch`; encode `params` as a JSON query value.
+AnySearch-specific query options are rejected for other providers, so `provider=auto`
+does not silently switch to AnySearch or consume an AnySearch key.
 `POST /api/anysearch/batch-search` accepts one to five query objects and runs
 them concurrently.
 

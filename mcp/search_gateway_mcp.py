@@ -378,7 +378,7 @@ def tool_definitions() -> list[dict[str, Any]]:
     tools = [
         {
             "name": "ai_search",
-            "description": "调用远端 AI Search Gateway 搜索。普通搜索请保持 provider=auto，让网关自动选择可靠上游并兜底；技术/AI/论文会自动偏向 Exa，实时/最新信息可显式选择 Grok；只有用户指定时才显式选择 SearXNG、文档、代码社区、百科、学术或开放数据 provider。",
+            "description": "调用远端 AI Search Gateway 搜索。普通搜索请保持 provider=auto，让网关按配置选择上游；技术/AI/论文会自动偏向 Exa，实时/最新信息可显式选择 Grok；AnySearch 的 tag/params/zone/language 仅在 provider=anysearch 时使用，不会把 auto 隐式改写成 AnySearch。",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -621,15 +621,14 @@ def handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "ai_search":
         query = require_text_arg(args, "query")
         provider = args.get("provider", "auto")
-        if provider == "auto" and any(args.get(key) is not None for key in ("tag", "domain", "sub_domain", "params", "zone", "language")):
-            provider = "anysearch"
         max_results = clamp_int(args.get("max_results", 5), 1, 10)
         query_params: dict[str, Any] = {"q": query, "provider": provider, "max_results": max_results}
-        for key in ("tag", "domain", "sub_domain", "zone", "language"):
-            if isinstance(args.get(key), str) and args[key].strip():
-                query_params[key] = args[key].strip()
-        if isinstance(args.get("params"), dict):
-            query_params["params"] = json.dumps(args["params"], ensure_ascii=False, separators=(",", ":"))
+        if provider == "anysearch":
+            for key in ("tag", "domain", "sub_domain", "zone", "language"):
+                if isinstance(args.get(key), str) and args[key].strip():
+                    query_params[key] = args[key].strip()
+            if isinstance(args.get("params"), dict):
+                query_params["params"] = json.dumps(args["params"], ensure_ascii=False, separators=(",", ":"))
         path = "/api/search?" + parse_query(query_params)
         result = call_gateway({"method": "GET", "path": path, "timeout": 90}, timeout=120)
     elif name == "ai_anysearch_sub_domains":

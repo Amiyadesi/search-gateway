@@ -16,7 +16,9 @@ This project acknowledges the [LINUX DO community](https://linux.do/).
   search path. Unconfigured fallback providers are skipped to avoid predictable
   latency.
 - AnySearch supports server-side key fallback, vertical tag/params search,
-  domain discovery, and bounded batch search.
+  domain discovery, and bounded batch search. Its vertical options are explicit:
+  use `provider=anysearch`; `auto` never changes route because those options are
+  present.
 - SerpJet can act as the final Google web-search fallback. Up to two server-side
   keys are tried without exposing either key to clients.
 - `POST /api/v1/evidence-search` runs a bounded multi-query/multi-source evidence

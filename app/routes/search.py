@@ -52,11 +52,15 @@ async def search(
             or options.zone
             or options.language
         )
-        effective_provider = "anysearch" if provider == "auto" and has_options else provider
-        provider_options = options.provider_kwargs() if effective_provider == "anysearch" else None
+        if has_options and provider != "anysearch":
+            raise GatewayError(
+                "AnySearch 参数仅支持 provider=anysearch；不会隐式改写 provider",
+                status_code=422,
+            )
+        provider_options = options.provider_kwargs() if provider == "anysearch" else None
         return await service.search(
             q,
-            provider=effective_provider,
+            provider=provider,
             max_results=max_results,
             provider_options=provider_options,
         )
